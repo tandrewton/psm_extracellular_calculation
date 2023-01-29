@@ -2,13 +2,15 @@ clear;close all;
 set(0,'DefaultFigureWindowStyle','docked')
 
 folder = "images_for_andrew/";
-att = "0.0";
+att = "0.1";
 numSeeds = 10;
 fileheader = "last_frame_PSM_images/";
-windowSize = [1/2 2/2 3/2 4/2 5/2 6/2];
+%windowSize = [1/2 2/2 3/2 4/2 5/2 6/2];
+windowSize = [1/2];
 
 % for each of the synthetic datasets, specify cell diameter (roughly) here
 cellDiameter = 175;
+hist_fig_id = 10;
 
 for ii=1:length(windowSize)
     % a is the multiplier for window size = a * cell diameter
@@ -17,6 +19,9 @@ for ii=1:length(windowSize)
 
     for jj=1:numSeeds
         synthetic_data = fileheader+"last_frame_PSM_sim_att"+att+"_sd"+jj+".tiff";
+        synthetic_boundary = fileheader+"last_frame_PSM_sim_att"+att+"_sd"+jj+".txt";
+
+        boundary = load(synthetic_boundary);
 
         % read in image
         I = im2gray(imread(synthetic_data));
@@ -43,16 +48,19 @@ for ii=1:length(windowSize)
         phi_arr_all_seeds = [phi_arr_all_seeds phi_arr];
     end
         
-    figure();
-    histogram(phi_arr_all_seeds,40,'Normalization','pdf')
-    xlabel('$\phi$','interpreter','latex', 'fontsize', 24)
-    ylabel('$P(\phi)$','interpreter','latex', 'fontsize', 24)
-    title("Window size = "+a+"d")
-    ylim([0 25])
-    xlim([0 1])
-    saveas(gcf, "dist_phi_att_"+att+"_window_"+a+".png")
+    figure(hist_fig_id); hold on;
+    [N,edges] = histcounts(phi_arr_all_seeds, 'Normalization','pdf');
+    edges = edges(2:end) - (edges(2)-edges(1))/2;
+    plot(edges, N,'DisplayName', "P($\phi |$ a="+a+"d)", 'linewidth', 3);
+    %histogram(phi_arr_all_seeds,40,'Normalization','pdf')
 end
 
+figure(hist_fig_id); hold on;
+xlabel('$\phi$','interpreter','latex', 'fontsize', 24)
+ylabel('$P(\phi)$','interpreter','latex', 'fontsize', 24)
+title("att="+att)
+legend('fontsize', 12, 'interpreter','latex')
+saveas(gcf, "dist_phi_att_"+att+".png")
 
 function images = windowImage(image, sideLen)
     % break an image into subImages of size sideLen x sideLen
@@ -64,6 +72,36 @@ function images = windowImage(image, sideLen)
         while (origin(2)+sideLen < length(image(:,1)))
             images{end+1} = [image(origin(2):origin(2)+sideLen, ...
                 origin(1):origin(1)+sideLen)];
+            origin(2) = origin(2) + sideLen;
+        end
+        origin(2) = 1;
+        origin(1) = origin(1) + sideLen;
+    end
+end
+
+function images = windowImageWithBoundary(image, sideLen, boundary)
+    % check whether any part of window is overlapping with
+    % polyshape(boundary)
+    polybd = polyshape(boundary);
+
+    % break an image into subImages of size sideLen x sideLen
+    images = {};
+    %start from (0,0) and window along x until greater than image size,
+    %then increase y and window along x again.
+    origin = [1 1];
+    while (origin(1)+sideLen < length(image(1,:)))
+        while (origin(2)+sideLen < length(image(:,1)))
+            if (exist('boundary', 'var'))
+                % if boundary option has been passed in, discard any
+                % subimages that overlap with the boundary
+                TF = overlaps(poly1, polybd);
+                % how to turn subimage into poly1? would probably need to
+                % feed in the grid size and reconstruct.... annoying. any
+                % way around this?
+            else
+                images{end+1} = [image(origin(2):origin(2)+sideLen, origin(1):origin(1)+sideLen)];
+            end
+
             origin(2) = origin(2) + sideLen;
         end
         origin(2) = 1;
