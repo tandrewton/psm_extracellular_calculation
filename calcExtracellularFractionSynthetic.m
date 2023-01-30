@@ -2,11 +2,11 @@ clear;close all;
 set(0,'DefaultFigureWindowStyle','docked')
 
 folder = "images_for_andrew/";
-att = "0.1";
+att = "0.01";
 numSeeds = 10;
 fileheader = "last_frame_PSM_images/";
-%windowSize = [1/2 2/2 3/2 4/2 5/2 6/2];
-windowSize = [1/2];
+windowSize = [1/2 2/2 3/2 4/2 5/2 6/2];
+%windowSize = [1/2];
 
 % for each of the synthetic datasets, specify cell diameter (roughly) here
 cellDiameter = 175;
@@ -19,17 +19,19 @@ for ii=1:length(windowSize)
 
     for jj=1:numSeeds
         synthetic_data = fileheader+"last_frame_PSM_sim_att"+att+"_sd"+jj+".tiff";
-        synthetic_boundary = fileheader+"last_frame_PSM_sim_att"+att+"_sd"+jj+".txt";
 
-        boundary = load(synthetic_boundary);
-
+        synthetic_boundary = fileheader+"last_frame_PSM_sim_att"+att+"_sd"+jj+"_bd.tif";
+        boundary = im2gray(imread(synthetic_boundary));
+        B = bwboundaries(~(imbinarize(boundary)),'noholes');
+        assert(length(B)==1); % only 1 boundary allowed
+        
         % read in image
         I = im2gray(imread(synthetic_data));
 
         % split I into windows
         % window sideLen should be comparable to cell diameter
         cellDiameterPixels = cellDiameter;
-        im_arr = windowImage(I, a*cellDiameterPixels);
+        im_arr = windowImage(I, round(a*cellDiameterPixels), B{1});
         phi_arr = zeros(size(im_arr));
 
         for i=1:length(im_arr)
@@ -62,29 +64,27 @@ title("att="+att)
 legend('fontsize', 12, 'interpreter','latex')
 saveas(gcf, "dist_phi_att_"+att+".png")
 
-function images = windowImage(image, sideLen)
-    % break an image into subImages of size sideLen x sideLen
-    images = {};
-    %start from (0,0) and window along x until greater than image size,
-    %then increase y and window along x again.
-    origin = [1 1];
-    while (origin(1)+sideLen < length(image(1,:)))
-        while (origin(2)+sideLen < length(image(:,1)))
-            images{end+1} = [image(origin(2):origin(2)+sideLen, ...
-                origin(1):origin(1)+sideLen)];
-            origin(2) = origin(2) + sideLen;
-        end
-        origin(2) = 1;
-        origin(1) = origin(1) + sideLen;
-    end
-end
+% function images = windowImage(image, sideLen)
+%     % break an image into subImages of size sideLen x sideLen
+%     images = {};
+%     %start from (0,0) and window along x until greater than image size,
+%     %then increase y and window along x again.
+%     origin = [1 1];
+%     while (origin(1)+sideLen < length(image(1,:)))
+%         while (origin(2)+sideLen < length(image(:,1)))
+%             images{end+1} = [image(origin(2):origin(2)+sideLen, ...
+%                 origin(1):origin(1)+sideLen)];
+%             origin(2) = origin(2) + sideLen;
+%         end
+%         origin(2) = 1;
+%         origin(1) = origin(1) + sideLen;
+%     end
+% end
 
-function images = windowImageWithBoundary(image, sideLen, boundary)
-    % check whether any part of window is overlapping with
-    % polyshape(boundary)
-    polybd = polyshape(boundary);
-
-    % break an image into subImages of size sideLen x sideLen
+function images = windowImage(image, sideLen, boundary)
+    % break an image into subImages of size sideLen x sideLen, with
+    % optional boundary argument for reducing # windows based on
+    % intersection with boundary
     images = {};
     %start from (0,0) and window along x until greater than image size,
     %then increase y and window along x again.
@@ -92,16 +92,24 @@ function images = windowImageWithBoundary(image, sideLen, boundary)
     while (origin(1)+sideLen < length(image(1,:)))
         while (origin(2)+sideLen < length(image(:,1)))
             if (exist('boundary', 'var'))
-                % if boundary option has been passed in, discard any
-                % subimages that overlap with the boundary
-                TF = overlaps(poly1, polybd);
-                % how to turn subimage into poly1? would probably need to
-                % feed in the grid size and reconstruct.... annoying. any
-                % way around this?
+                %fprintf("origin = [%d %d], size(images) = %d\n", origin(1), origin(2), length(images));
+                % boundary option: discard subimages overlapping w/ boundary
+                % construct boundary polyshape and window polyshape
+                polybd = polyshape(boundary);
+                xpos = [origin(1); origin(1); origin(1)+sideLen; origin(1)+sideLen];
+                ypos = [origin(2); origin(2)+sideLen; origin(2)+sideLen; origin(2)];
+                polywindow = polyshape(xpos, ypos);
+                overlapArea = area(intersect(polywindow, polybd));
+                if (overlapArea < 1e-10)
+                    % window overlap is too small, discard window
+                    origin(2) = origin(2) + sideLen;
+                    continue;
+                else
+                    images{end+1} = [image(origin(2):origin(2)+sideLen, origin(1):origin(1)+sideLen)];
+                end
             else
                 images{end+1} = [image(origin(2):origin(2)+sideLen, origin(1):origin(1)+sideLen)];
             end
-
             origin(2) = origin(2) + sideLen;
         end
         origin(2) = 1;
