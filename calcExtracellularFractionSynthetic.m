@@ -2,67 +2,71 @@ clear;close all;
 set(0,'DefaultFigureWindowStyle','docked')
 
 folder = "images_for_andrew/";
-att = "0.01";
+%att = "0.01";
+att_arr = ["0.0" "0.01" "0.1"];
 numSeeds = 10;
 fileheader = "last_frame_PSM_images/";
 windowSize = [1/2 2/2 3/2 4/2 5/2 6/2];
 %windowSize = [1/2];
+cm = colormap(parula(length(windowSize)));
 
 % for each of the synthetic datasets, specify cell diameter (roughly) here
 cellDiameter = 175;
-hist_fig_id = 10;
 
-for ii=1:length(windowSize)
-    % a is the multiplier for window size = a * cell diameter
-    a = windowSize(ii);
-    phi_arr_all_seeds = [];
-
-    for jj=1:numSeeds
-        synthetic_data = fileheader+"last_frame_PSM_sim_att"+att+"_sd"+jj+".tiff";
-
-        synthetic_boundary = fileheader+"last_frame_PSM_sim_att"+att+"_sd"+jj+"_bd.tif";
-        boundary = im2gray(imread(synthetic_boundary));
-        B = bwboundaries(~(imbinarize(boundary)),'noholes');
-        assert(length(B)==1); % only 1 boundary allowed
-        
-        % read in image
-        I = im2gray(imread(synthetic_data));
-
-        % split I into windows
-        % window sideLen should be comparable to cell diameter
-        cellDiameterPixels = cellDiameter;
-        im_arr = windowImage(I, round(a*cellDiameterPixels), B{1});
-        phi_arr = zeros(size(im_arr));
-
-        for i=1:length(im_arr)
-            phi_arr(i) = calcSubPhi(im_arr{i});
+for aa=1:length(att_arr)
+    att = att_arr(aa);
+    hist_fig_id = 10 + aa;
+    for ii=1:length(windowSize)
+        % a is the multiplier for window size = a * cell diameter
+        a = windowSize(ii);
+        phi_arr_all_seeds = [];
+    
+        for jj=1:numSeeds
+            synthetic_data = fileheader+"last_frame_PSM_sim_att"+att+"_sd"+jj+".tiff";
+    
+            synthetic_boundary = fileheader+"last_frame_PSM_sim_att"+att+"_sd"+jj+"_bd.tif";
+            boundary = im2gray(imread(synthetic_boundary));
+            B = bwboundaries(~(imbinarize(boundary)),'noholes');
+            assert(length(B)==1); % only 1 boundary allowed
+            
+            % read in image
+            I = im2gray(imread(synthetic_data));
+    
+            % split I into windows
+            % window sideLen should be comparable to cell diameter
+            cellDiameterPixels = cellDiameter;
+            im_arr = windowImage(I, round(a*cellDiameterPixels), B{1});
+            %im_arr = windowImage(I, round(a*cellDiameterPixels));
+            phi_arr = zeros(size(im_arr));
+    
+            for i=1:length(im_arr)
+                phi_arr(i) = calcSubPhi(im_arr{i});
+            end
+    
+            if (jj==Inf)
+                % show some configuratitoons, for examples
+                figure();
+                imshow(im_arr{1+floor(length(im_arr)/10)})
+                figure()
+                imshow(im_arr{1+floor(length(im_arr)/5)})
+                figure()
+                imshow(im_arr{1+floor(length(im_arr)/2)})
+            end
+            phi_arr_all_seeds = [phi_arr_all_seeds phi_arr];
         end
-
-        if (jj==Inf)
-            % show some configurations, for examples
-            figure();
-            imshow(im_arr{1+floor(length(im_arr)/10)})
-            figure()
-            imshow(im_arr{1+floor(length(im_arr)/5)})
-            figure()
-            imshow(im_arr{1+floor(length(im_arr)/2)})
-        end
-        phi_arr_all_seeds = [phi_arr_all_seeds phi_arr];
+        figure(hist_fig_id); hold on;
+        [N,edges] = histcounts(phi_arr_all_seeds, 'Normalization','pdf');
+        edges = edges(2:end) - (edges(2)-edges(1))/2;
+        plot(edges, N,'DisplayName', "P($\phi |$ a="+a+"d)", 'linewidth', 3, 'Color', cm(ii,:));
+        %histogram(phi_arr_all_seeds,40,'Normalization','pdf')
     end
-        
     figure(hist_fig_id); hold on;
-    [N,edges] = histcounts(phi_arr_all_seeds, 'Normalization','pdf');
-    edges = edges(2:end) - (edges(2)-edges(1))/2;
-    plot(edges, N,'DisplayName', "P($\phi |$ a="+a+"d)", 'linewidth', 3);
-    %histogram(phi_arr_all_seeds,40,'Normalization','pdf')
+    xlabel('$\phi$','interpreter','latex', 'fontsize', 24)
+    ylabel('$P(\phi)$','interpreter','latex', 'fontsize', 24)
+    title("att="+att)
+    legend('fontsize', 12, 'interpreter','latex', 'location', 'Best')
+    saveas(gcf, "dist_phi_att_"+att+".png")
 end
-
-figure(hist_fig_id); hold on;
-xlabel('$\phi$','interpreter','latex', 'fontsize', 24)
-ylabel('$P(\phi)$','interpreter','latex', 'fontsize', 24)
-title("att="+att)
-legend('fontsize', 12, 'interpreter','latex')
-saveas(gcf, "dist_phi_att_"+att+".png")
 
 % function images = windowImage(image, sideLen)
 %     % break an image into subImages of size sideLen x sideLen
@@ -100,7 +104,8 @@ function images = windowImage(image, sideLen, boundary)
                 ypos = [origin(2); origin(2)+sideLen; origin(2)+sideLen; origin(2)];
                 polywindow = polyshape(xpos, ypos);
                 overlapArea = area(intersect(polywindow, polybd));
-                if (overlapArea < 1e-10)
+                %if (overlapArea < area(polywindow)) % strict
+                if (overlapArea < 1e-10) % lenient
                     % window overlap is too small, discard window
                     origin(2) = origin(2) + sideLen;
                     continue;

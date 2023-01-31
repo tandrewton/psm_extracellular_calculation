@@ -9,42 +9,50 @@ fbn1_fbn2_file = "fn1a--fn1b--/fn1a--fn1b--_12_1-slice.tif";
 fn_cdh_MO_file1 = "fn1a--fn1b--cdh2--fbn2b_MO/fbn2bMO_fn1a--fn1b--cdh2--_10_2-slice.tif";
 fn_cdh_MO_file2 = "fn1a--fn1b--cdh2--fbn2b_MO/fbn2bMO_fn1a--fn1b--cdh2--_11_2-slice.tif";
 
-%synthetic_data = ["last_frame_PSM_sim_WT_N100.tiff" "last_frame_PSM_sim_mut1_N100.tiff" "last_frame_PSM_sim_mut2_N100.tiff"];
-att = "0.1";
-numSeeds = 10;
-fileheader = "last_frame_PSM_images/";
-phi_arr_all_seeds = [];
-windowSize = [1/2 2/2 3/2 4/2 5/2 6/2];
+bd_file = "wt_11_1_psmarea.tif";
+raw_file = "wt_11_1_rawbinary-1.tif";
 
-for ii=1:numSeeds
-    for aa=windowSize
-        % for each of the synthetic datasets, specify cell diameter (roughly) here
-        cellDiameter = 175;
-        
-        synthetic_data = fileheader+"last_frame_PSM_sim_att"+att+"_sd"+ii+".tiff";
-        a = 2/2; % multiplier for a*diameter window length
+numFrames = 1;
+phi_arr_all_frames = [];
+
+%windowSize = [1/2 2/2 3/2 4/2 5/2 6/2];
+windowSize = [1/2];
+cm = colormap(parula(length(windowSize)));
+
+% for each of the synthetic datasets, specify cell diameter (roughly) here
+cellDiameter = 250;
+
+for ii=1:length(windowSize)
+    hist_fig_id = 10;
+    % a is the multiplier for window size = a * cell diameter
+    a = windowSize(ii);
+    phi_arr_all_frames = [];
+
+    for jj=1:numFrames
+        psm_raw = imread(folder+raw_file,jj);
+        psm_boundary = imread(folder+bd_file,jj);
+        imshow(psm_raw)
+
+        B = bwboundaries(psm_boundary,'noholes');
+        B = B{1};
         
         % read in image
-        I = im2gray(imread(synthetic_data));
-        figure()
-        imshow(I)
-        
+        I = psm_raw;
+        %need to invert grayscale values (0->255, 255->0)
+
         % split I into windows
         % window sideLen should be comparable to cell diameter
         cellDiameterPixels = cellDiameter;
-        im_arr = windowImage(I, a*cellDiameterPixels);
+        im_arr = windowImage(I, round(a*cellDiameterPixels), B);
+        %im_arr = windowImage(I, round(a*cellDiameterPixels));
         phi_arr = zeros(size(im_arr));
+
         for i=1:length(im_arr)
             phi_arr(i) = calcSubPhi(im_arr{i});
         end
-        
-%         figure();
-%         histogram(phi_arr,20,'Normalization','pdf')
-%         xlabel('$\phi$','interpreter','latex', 'fontsize', 24)
-%         ylabel('$P(\phi)$','interpreter','latex', 'fontsize', 24)
-        
-        if (ii==1)
-            % show some configurations, for examples
+
+        if (jj==1)
+            % show some configuratitoons, for examples
             figure();
             imshow(im_arr{1+floor(length(im_arr)/10)})
             figure()
@@ -52,26 +60,68 @@ for ii=1:numSeeds
             figure()
             imshow(im_arr{1+floor(length(im_arr)/2)})
         end
-
-        phi_arr_all_seeds = [phi_arr_all_seeds phi_arr];
+        phi_arr_all_frames = [phi_arr_all_frames phi_arr];
     end
+    figure(hist_fig_id); hold on;
+    [N,edges] = histcounts(phi_arr_all_frames, 'Normalization','pdf');
+    edges = edges(2:end) - (edges(2)-edges(1))/2;
+    plot(edges, N,'DisplayName', "P($\phi |$ a="+a+"d)", 'linewidth', 3, 'Color', cm(ii,:));
+    %histogram(phi_arr_all_seeds,40,'Normalization','pdf')
 end
-
-figure();
-histogram(phi_arr_all_seeds,40,'Normalization','pdf')
+figure(hist_fig_id); hold on;
 xlabel('$\phi$','interpreter','latex', 'fontsize', 24)
 ylabel('$P(\phi)$','interpreter','latex', 'fontsize', 24)
+title("all window sizes")
+legend('fontsize', 12, 'interpreter','latex', 'location', 'Best')
+saveas(gcf, "dist_phi_psm.png")
 
-function images = windowImage(image, sideLen)
-    % break an image into subImages of size sideLen x sideLen
+% function images = windowImage(image, sideLen)
+%     % break an image into subImages of size sideLen x sideLen
+%     images = {};
+%     %start from (0,0) and window along x until greater than image size,
+%     %then increase y and window along x again.
+%     origin = [1 1];
+%     while (origin(1)+sideLen < length(image(1,:)))
+%         while (origin(2)+sideLen < length(image(:,1)))
+%             images{end+1} = [image(origin(2):origin(2)+sideLen, ...
+%                 origin(1):origin(1)+sideLen)];
+%             origin(2) = origin(2) + sideLen;
+%         end
+%         origin(2) = 1;
+%         origin(1) = origin(1) + sideLen;
+%     end
+% end
+
+function images = windowImage(image, sideLen, boundary)
+    % break an image into subImages of size sideLen x sideLen, with
+    % optional boundary argument for reducing # windows based on
+    % intersection with boundary
     images = {};
     %start from (0,0) and window along x until greater than image size,
     %then increase y and window along x again.
     origin = [1 1];
     while (origin(1)+sideLen < length(image(1,:)))
         while (origin(2)+sideLen < length(image(:,1)))
-            images{end+1} = [image(origin(2):origin(2)+sideLen, ...
-                origin(1):origin(1)+sideLen)];
+            if (exist('boundary', 'var'))
+                %fprintf("origin = [%d %d], size(images) = %d\n", origin(1), origin(2), length(images));
+                % boundary option: discard subimages overlapping w/ boundary
+                % construct boundary polyshape and window polyshape
+                polybd = polyshape(boundary);
+                xpos = [origin(1); origin(1); origin(1)+sideLen; origin(1)+sideLen];
+                ypos = [origin(2); origin(2)+sideLen; origin(2)+sideLen; origin(2)];
+                polywindow = polyshape(xpos, ypos);
+                overlapArea = area(intersect(polywindow, polybd));
+                %if (overlapArea < area(polywindow)) % strict
+                if (overlapArea < 1e-10) % lenient
+                    % window overlap is too small, discard window
+                    origin(2) = origin(2) + sideLen;
+                    continue;
+                else
+                    images{end+1} = [image(origin(2):origin(2)+sideLen, origin(1):origin(1)+sideLen)];
+                end
+            else
+                images{end+1} = [image(origin(2):origin(2)+sideLen, origin(1):origin(1)+sideLen)];
+            end
             origin(2) = origin(2) + sideLen;
         end
         origin(2) = 1;
