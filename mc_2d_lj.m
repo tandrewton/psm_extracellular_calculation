@@ -8,16 +8,17 @@ rng(1)
 % initialConfig - initial configuration of particles (2 by N matrix)
 % initialU - initial energy of the configuration
 % rCutoff - the cutoff distance for the energy
-N = 50;
+N = 10;
 T = 0.1;
 rho = 0.55;
-Nsteps = 1000;
+Nsteps = 100000;
 radius = 0.5;
-maxdr = 2*radius;
+maxdr = radius;
 rCutoff = 2.5;
 L = sqrt(N/rho);
 moveCount = 0;
-maxMoves = 25;
+minMoves = 500;
+maxMoves = 2500;
 movedParticle = 0;
 
 % create initial configuration
@@ -32,10 +33,20 @@ U = 4*sum(sum(dist.^(-12)-dist.^(-6),"omitnan"),"omitnan");
 particlesPosition = initialConfig;
 
 dUList = [];
+UList = [];
 
 for step=1:Nsteps
-    if (moveCount > maxMoves)
+    if moveCount > maxMoves
         break;
+    elseif moveCount == minMoves && ~isempty(dUList)
+        % after enough moves, consider the initial configuration melted and
+        % restart energy counting for better numerical stability
+        U = pairU(dist, rCutoff);
+        disp(U)
+        dUList = [];
+        UList = [];
+        plotConfiguration(particlesPosition);
+        yline(0); yline(L); xline(0); xline(L);
     end
     % begin trial move for Metropolis algorithm
 
@@ -65,9 +76,10 @@ for step=1:Nsteps
             dist = newDist;
             particlesPosition = newParticlesPosition;
             moveCount = moveCount + 1;
-            plotConfiguration(particlesPosition);
-            yline(0); yline(L); xline(0); xline(L);
+            %plotConfiguration(particlesPosition);
+            %yline(0); yline(L); xline(0); xline(L);
             dUList(end+1) = dU;
+            UList(end+1) = U;
         else
             % probability of keeping new state corresponds to a boltzmann factor
             % otherwise reject move, keep original configuration
@@ -76,9 +88,10 @@ for step=1:Nsteps
                 dist = newDist;
                 particlesPosition = newParticlesPosition;
                 moveCount = moveCount + 1;
-                plotConfiguration(particlesPosition);
-                yline(0); yline(L); xline(0); xline(L);
+                %plotConfiguration(particlesPosition);
+                %yline(0); yline(L); xline(0); xline(L);
                 dUList(end+1) = dU;
+                UList(end+1) = U;
             end
         end
     end
@@ -90,41 +103,46 @@ finalDistances = dist;
 plotConfiguration(finalConfiguration);
 yline(0); yline(L); xline(0); xline(L);
 
-function newdist = reCalcDist(dist,movedParticles,...
-                newParticlesPosition,N,nlist)
-    for i = 1:length(movedParticles)
-        movedP = movedParticles(i);
-        % recalculates pair distances after moving a particle    
-        xi = newParticlesPosition(1,movedP);
-        yi = newParticlesPosition(2,movedP);
-        newdist = dist;
-        % recalculate the relevent row elements in dist matrix
-        if movedP > 1
-            if ~isempty(nlist)
-                neiInd =...
-                    nlist.neighborsindy(nlist.neighborsindx == movedP);
-                newdist(movedP,neiInd) =...
-                distNoPBC(xi,yi,newParticlesPosition(:,neiInd));
-            else
-                newdist(movedP,1:(movedP-1)) =...
-                    distNoPBC(xi,yi,newParticlesPosition(:,1:(movedP-1)));
-            end
-        end
-        % recalculate the relevent column elements in dist matrix
-        if movedP < N
-            if ~isempty(nlist)
-                neiInd =...
-                    nlist.neighborsindx(nlist.neighborsindy == movedP);
-                newdist(neiInd,movedP) =...
-                distNoPBC(xi,yi,...
-                    newParticlesPosition(:,neiInd));
-            else
-                newdist((movedP + 1):N,movedP) =...
-                distNoPBC(xi,yi,newParticlesPosition(:,(movedP+1):N));
-            end
-        end
-    end   
-end
+% function newdist = reCalcDist(dist,movedParticles,...
+%                 newParticlesPosition,N,nlist)
+%     for i = 1:length(movedParticles)
+%         movedP = movedParticles(i);
+%         % recalculates pair distances after moving a particle    
+%         xi = newParticlesPosition(1,movedP);
+%         yi = newParticlesPosition(2,movedP);
+%         newdist = dist;
+%         % recalculate the relevent row elements in dist matrix
+%         if movedP > 1
+%             if ~isempty(nlist)
+%                 neiInd =...
+%                     nlist.neighborsindy(nlist.neighborsindx == movedP);
+%                 newdist(movedP,neiInd) =...
+%                 distNoPBC(xi,yi,newParticlesPosition(:,neiInd));
+%             else
+%                 newdist(movedP,1:(movedP-1)) =...
+%                     distNoPBC(xi,yi,newParticlesPosition(:,1:(movedP-1)));
+%             end
+%         end
+%         % recalculate the relevent column elements in dist matrix
+%         if movedP < N
+%             if ~isempty(nlist)
+%                 neiInd =...
+%                     nlist.neighborsindx(nlist.neighborsindy == movedP);
+%                 newdist(neiInd,movedP) =...
+%                 distNoPBC(xi,yi,...
+%                     newParticlesPosition(:,neiInd));
+%             else
+%                 newdist((movedP + 1):N,movedP) =...
+%                 distNoPBC(xi,yi,newParticlesPosition(:,(movedP+1):N));
+%             end
+%         end
+%     end   
+% end
+
+% function newdist = reCalcDist(dist,movedParticles,...
+%                  newParticlesPosition,N)
+%     
+% end
 
 function dist = distNoPBC(x,y,allPositions)
     distx = abs(x - allPositions(1,:));
@@ -182,7 +200,7 @@ function U = pairU(dist,rCutoff)
     % u is the energies of each pair
     invR = 1./dist_rCutoff;
     u = 4*((invR.^12)-(invR.^6)); 
-    U = sum(u);
+    U = sum(u,"omitnan");
 end
 
 function wallU = wallEnergy(particle, pos, L, radius)
@@ -205,6 +223,7 @@ function plotConfiguration(config)
     radius = 1/2;
     for ii=1:length(config(1,:))
         circle2(config(1, ii), config(2,ii), radius);
+        %scatter(config(1,ii), config(2,ii), 'k')
     end
     axis equal;
     axis off;
