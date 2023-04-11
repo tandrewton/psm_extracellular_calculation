@@ -1,5 +1,6 @@
 %% monte carlo simulation of 2D LJ discs with non-periodic rectangular boundaries
 close all; clear;
+set(0,'DefaultFigureWindowStyle','docked')
 rng(1)
 % N - number of particles
 % T - reduced temperature
@@ -8,7 +9,7 @@ rng(1)
 % initialConfig - initial configuration of particles (2 by N matrix)
 % initialU - initial energy of the configuration
 % rCutoff - the cutoff distance for the energy
-N = 10;
+N = 100;
 T = 0.1;
 rho = 0.55;
 Nsteps = 100000;
@@ -31,18 +32,20 @@ initialDistances = sqrt(bsxfun(@(x1,x2) (x1-x2).^2 ,...
 dist = initialDistances;
 U = 4*sum(sum(dist.^(-12)-dist.^(-6),"omitnan"),"omitnan");
 particlesPosition = initialConfig;
+plotConfiguration(particlesPosition);
+yline(0); yline(L); xline(0); xline(L);
 
 dUList = [];
 UList = [];
 
 for step=1:Nsteps
-    if moveCount > maxMoves
+    if moveCount >= maxMoves
+        moveCount
         break;
     elseif moveCount == minMoves && ~isempty(dUList)
         % after enough moves, consider the initial configuration melted and
         % restart energy counting for better numerical stability
         U = pairU(dist, rCutoff);
-        disp(U)
         dUList = [];
         UList = [];
         plotConfiguration(particlesPosition);
@@ -63,7 +66,7 @@ for step=1:Nsteps
     % calculate trial move properties
     newParticlesPosition = particlesPosition;
     newParticlesPosition(:,movedParticle) = particlesPosition(:,movedParticle) + [displacex; displacey];
-    newDist = reCalcDist(dist, movedParticle, newParticlesPosition, N,[]);
+    newDist = reCalcDist(dist, movedParticle, newParticlesPosition, N);
 
     % calculate change in energy
     dU = Uchange(movedParticle, dist, newDist, N, rCutoff);
@@ -103,46 +106,22 @@ finalDistances = dist;
 plotConfiguration(finalConfiguration);
 yline(0); yline(L); xline(0); xline(L);
 
-% function newdist = reCalcDist(dist,movedParticles,...
-%                 newParticlesPosition,N,nlist)
-%     for i = 1:length(movedParticles)
-%         movedP = movedParticles(i);
-%         % recalculates pair distances after moving a particle    
-%         xi = newParticlesPosition(1,movedP);
-%         yi = newParticlesPosition(2,movedP);
-%         newdist = dist;
-%         % recalculate the relevent row elements in dist matrix
-%         if movedP > 1
-%             if ~isempty(nlist)
-%                 neiInd =...
-%                     nlist.neighborsindy(nlist.neighborsindx == movedP);
-%                 newdist(movedP,neiInd) =...
-%                 distNoPBC(xi,yi,newParticlesPosition(:,neiInd));
-%             else
-%                 newdist(movedP,1:(movedP-1)) =...
-%                     distNoPBC(xi,yi,newParticlesPosition(:,1:(movedP-1)));
-%             end
-%         end
-%         % recalculate the relevent column elements in dist matrix
-%         if movedP < N
-%             if ~isempty(nlist)
-%                 neiInd =...
-%                     nlist.neighborsindx(nlist.neighborsindy == movedP);
-%                 newdist(neiInd,movedP) =...
-%                 distNoPBC(xi,yi,...
-%                     newParticlesPosition(:,neiInd));
-%             else
-%                 newdist((movedP + 1):N,movedP) =...
-%                 distNoPBC(xi,yi,newParticlesPosition(:,(movedP+1):N));
-%             end
-%         end
-%     end   
-% end
-
-% function newdist = reCalcDist(dist,movedParticles,...
-%                  newParticlesPosition,N)
-%     
-% end
+function newdist = reCalcDist(dist,movedParticles,...
+                newParticlesPosition,N)
+    for i = 1:length(movedParticles)
+        movedP = movedParticles(i);
+        % recalculates pair distances after moving a particle    
+        xi = newParticlesPosition(1,movedP);
+        yi = newParticlesPosition(2,movedP);
+        newdist = dist;
+        % recalculate the relevent row elements in dist matrix
+        newdist(movedP,:) =...
+        distNoPBC(xi,yi,newParticlesPosition);
+        % recalculate the relevent column elements in dist matrix
+        newdist(:,movedP) =...
+        distNoPBC(xi,yi,newParticlesPosition);
+    end   
+end
 
 function dist = distNoPBC(x,y,allPositions)
     distx = abs(x - allPositions(1,:));
