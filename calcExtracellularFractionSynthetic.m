@@ -5,14 +5,15 @@ folder = "images_for_andrew/";
 %att = "0.01";
 %att_arr = ["0.0" "0.01" "0.1"];
 att_arr = ["0.0"];
-numSeeds = 10;
-fileheader = "last_frame_PSM_images/";
-windowSize = [1/2 2/2 3/2 4/2 5/2 6/2];
-%windowSize = [2/2];
+numSeeds = 100;
+%fileheader = "last_frame_PSM_images/";
+fileheader = "mc_simulation_frames/";
+%windowSize = [1/2 2/2 3/2 4/2 5/2 6/2];
+windowSize = [1/2 2/2 3/2 4/2];
 cm = colormap(parula(length(windowSize)));
 
 % for each of the synthetic datasets, specify cell diameter (roughly) here
-cellDiameter = 450;
+cellDiameter = 30;
 
 % mark what kind of boundary we're using
 isStrictBoundary = true;
@@ -25,6 +26,7 @@ for aa=1:length(att_arr)
     att = att_arr(aa);
     hist_fig_id = 10 + aa;
     for ii=1:length(windowSize)
+        windowSize
         % a is the multiplier for window size = a * cell diameter
         a = windowSize(ii);
         phi_arr_all_seeds = [];
@@ -32,8 +34,10 @@ for aa=1:length(att_arr)
         for jj=1:numSeeds
             %synthetic_data = fileheader+"last_frame_PSM_sim_att"+att+"_sd"+jj+".tiff";
             %synthetic_boundary = fileheader+"last_frame_PSM_sim_att"+att+"_sd"+jj+"_bd.tif";
-            synthetic_data = "diskPacking"+jj+".tif";
-            synthetic_boundary = "diskPacking"+jj+"_bd.tif";
+            %synthetic_data = "diskPacking"+jj+".tif";
+            %synthetic_boundary = "diskPacking"+jj+"_bd.tif";
+            synthetic_data = fileheader+"MC_cycle"+(jj+14)+".tif";
+            synthetic_boundary = fileheader+"MC_cycle"+(jj+14)+"_bd.tif";
             boundary = im2gray(imread(synthetic_boundary));
             B = bwboundaries(~(imbinarize(boundary)),'noholes');
             assert(length(B)==1); % only 1 boundary allowed
@@ -73,7 +77,7 @@ for aa=1:length(att_arr)
     figure(hist_fig_id); hold on;
     xlabel('$\phi$','interpreter','latex', 'fontsize', 24)
     ylabel('$P(\phi)$','interpreter','latex', 'fontsize', 24)
-    title("att="+att)
+    %title("att="+att)
     legend('fontsize', 12, 'interpreter','latex', 'location', 'Best')
     xlim([0 1])
     %saveas(gcf, "dist_phi_synthetic_"+filenameModifier+"att_"+att+".png")

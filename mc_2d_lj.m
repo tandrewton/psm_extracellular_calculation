@@ -10,16 +10,21 @@ rng(1)
 % initialU - initial energy of the configuration
 % rCutoff - the cutoff distance for the energy
 N = 100;
-T = 0.1;
+sigma = normrnd(1.0, 0.1, N, 1); % polydisperse normal distribution 1,0.1
+assert(isempty(sigma(sigma <= 0)));
+T = 0.3;
 rho = 0.55;
-Nsteps = 100000;
+Nsteps = 10000000;
 radius = 0.5;
 maxdr = radius;
 rCutoff = 2.5;
 L = sqrt(N/rho);
 moveCount = 0;
-minMoves = 500;
-maxMoves = 2500;
+numFrames = 100;
+numCyclesPrint = 10; % print every n MC cycles = N*n accepted moves
+minMoves = 15000;
+maxMoves = minMoves + numCyclesPrint*N*numFrames;
+
 movedParticle = 0;
 
 % create initial configuration
@@ -31,6 +36,8 @@ initialDistances = sqrt(bsxfun(@(x1,x2) (x1-x2).^2 ,...
 
 dist = initialDistances;
 U = 4*sum(sum(dist.^(-12)-dist.^(-6),"omitnan"),"omitnan");
+% use uniform size for first configuration, equilibrate using general
+% equation for polydisperse radii
 particlesPosition = initialConfig;
 plotConfiguration(particlesPosition);
 yline(0); yline(L); xline(0); xline(L);
@@ -53,11 +60,11 @@ for step=1:Nsteps
     end
     % begin trial move for Metropolis algorithm
 
+    isMoveAccepted = false;
+
     % choose particle to move 
-    movedParticle = movedParticle + 1;
-    if movedParticle == N + 1
-        movedParticle = 1;
-    end
+    movedParticle = mod(movedParticle, N)+1;
+
     % choose displacement:
     displacex = maxdr*rand - (maxdr/2);
     displacey = maxdr*rand - (maxdr/2);
@@ -83,9 +90,9 @@ for step=1:Nsteps
             %yline(0); yline(L); xline(0); xline(L);
             dUList(end+1) = dU;
             UList(end+1) = U;
+            isMoveAccepted = true;
         else
-            % probability of keeping new state corresponds to a boltzmann factor
-            % otherwise reject move, keep original configuration
+            % probability of keeping new state, otherwise reject move
             if rand < exp(-dU/T)
                 U = U + dU;
                 dist = newDist;
@@ -95,8 +102,16 @@ for step=1:Nsteps
                 %yline(0); yline(L); xline(0); xline(L);
                 dUList(end+1) = dU;
                 UList(end+1) = U;
+                isMoveAccepted = true;
             end
         end
+    end
+
+    if (isMoveAccepted && mod(moveCount, numCyclesPrint*N) == 0 && moveCount >= minMoves)
+        % every MC cycle, plot and save the configuration
+        filename = "mc_simulation_frames/" + ...
+            "MC_cycle" + moveCount/N/numCyclesPrint;
+        exportFrameGraphic(filename, L, particlesPosition);
     end
 end
 
@@ -170,16 +185,28 @@ function dU = Uchange(movedParticle,dist,newDist,N,rCutoff)
     dU = newU - oldU;
 end
 
-function U = pairU(dist,rCutoff)
-    % calculates the reduced energy according to the pair
-    % potantial, only pair closer than rCutoff are regarded.
+% function U = pairU(dist,rCutoff)
+%     % calculates the reduced energy according to the pair potential
+%     % input: dist is a row vector of all pair distances
+%     % output: U is the total energy 
+%     dist_rCutoff = dist(dist < rCutoff);
+%     invR = 1./dist_rCutoff;
+%     u = 4*((invR.^12)-(invR.^6));  % pair energies, LJ
+%     %u = 1e10 * (dist_rCutoff <= 1); % pair energies, hard sphere
+%     U = sum(u,"omitnan");
+% end
+
+function U = pairU(dist, rCutoff)
+    % calculates the reduced energy according to the pair potential
     % input: dist is a row vector of all pair distances
     % output: U is the total energy 
+    epsilon_adh = 1.0;
     dist_rCutoff = dist(dist < rCutoff);
-    % u is the energies of each pair
+    dist_hard_contact = dist(dist < 1.0);
     invR = 1./dist_rCutoff;
-    u = 4*((invR.^12)-(invR.^6)); 
-    U = sum(u,"omitnan");
+    repulsiveLJ = 4*(1-invR.^6).^2; % pair energies, repulsive LJ
+    u_cutoff = 4*epsilon_adh*(1-(1/2.5).^6).^2; % reference: virrueta, o'hern, regan Proteins 2016
+    
 end
 
 function wallU = wallEnergy(particle, pos, L, radius)
@@ -197,8 +224,21 @@ function wallU = wallEnergy(particle, pos, L, radius)
     end
 end
 
-function plotConfiguration(config)
-    figure(); clf; hold on;
+function h = circle2(x,y,r)
+    d = r*2;
+    px = x-r;
+    py = y-r;
+    h = rectangle('Position',[px py d d],'Curvature',[1,1], 'FaceColor', 'k');
+    daspect([1,1,1])
+end
+
+function plotConfiguration(config, fignum)
+    if exist('fignum','var')
+        figure(fignum); clf; hold on; % specified figure
+    else
+        figure(); clf; hold on; % new figure
+    end
+
     radius = 1/2;
     for ii=1:length(config(1,:))
         circle2(config(1, ii), config(2,ii), radius);
@@ -208,10 +248,17 @@ function plotConfiguration(config)
     axis off;
 end
 
-function h = circle2(x,y,r)
-    d = r*2;
-    px = x-r;
-    py = y-r;
-    h = rectangle('Position',[px py d d],'Curvature',[1,1], 'FaceColor', 'k');
-    daspect([1,1,1])
+function exportFrameGraphic(filename, L, particlesPosition)
+    plotConfiguration(particlesPosition, 2)
+    xlim([0,L]*1.1 - 0.05*L)
+    ylim([0,L]*1.1 - 0.05*L)
+    yline(0); yline(L); xline(0); xline(L);
+    exportgraphics(gcf, filename+".tif", 'Resolution', 100);
+
+    clf; hold on;
+    axis equal; axis off;
+    xlim([0,L]*1.1 - 0.05*L)
+    ylim([0,L]*1.1 - 0.05*L)
+    yline(0); yline(L); xline(0); xline(L);
+    exportgraphics(gcf, filename+"_bd.tif", 'Resolution', 100);
 end
