@@ -10,18 +10,21 @@ rng(1)
 % initialU - initial energy of the configuration
 % rCutoff - the cutoff distance for the energy
 N = 100;
-sigma = normrnd(1.0, 0.1, N, 1); % polydisperse normal distribution 1,0.1
-assert(isempty(sigma(sigma <= 0)));
-T = 0.3;
-rho = 0.55;
-Nsteps = 10000000;
+%radius = normrnd(1.0, 0.1, N, 1)/2; % polydisperse normal distribution 1,0.1
+%assert(isempty(radius(radius <= 0)));
+T = 0.5;
+phi = 0.55;
+Nsteps = 100000000;
 radius = 0.5;
 maxdr = radius;
 rCutoff = 2.5;
-L = sqrt(N/rho);
+L = sqrt(N*pi*radius^2/phi);
 moveCount = 0;
-numFrames = 100;
-numCyclesPrint = 10; % print every n MC cycles = N*n accepted moves
+numFrames = 1;
+numCyclesPrint = 10;
+isSaveFigure = true; % determines whether we save the figures we print
+%numCyclesPrint = 0; % print every n MC cycles = N*n accepted moves
+%minMoves = 15000;
 minMoves = 15000;
 maxMoves = minMoves + numCyclesPrint*N*numFrames;
 
@@ -35,7 +38,8 @@ initialDistances = sqrt(bsxfun(@(x1,x2) (x1-x2).^2 ,...
        initialConfig(2,:),initialConfig(2,:)'));
 
 dist = initialDistances;
-U = 4*sum(sum(dist.^(-12)-dist.^(-6),"omitnan"),"omitnan");
+%U = 4*sum(sum(dist.^(-12)-dist.^(-6),"omitnan"),"omitnan");
+U = pairU(dist, rCutoff);
 % use uniform size for first configuration, equilibrate using general
 % equation for polydisperse radii
 particlesPosition = initialConfig;
@@ -46,6 +50,10 @@ dUList = [];
 UList = [];
 
 for step=1:Nsteps
+    if (step == Nsteps)
+        disp("error: step hit max counter, aborting")
+        assert(step < Nsteps)
+    end
     if moveCount >= maxMoves
         moveCount
         break;
@@ -57,6 +65,7 @@ for step=1:Nsteps
         UList = [];
         plotConfiguration(particlesPosition);
         yline(0); yline(L); xline(0); xline(L);
+        disp("Melted, restarting energy counter\n")
     end
     % begin trial move for Metropolis algorithm
 
@@ -107,11 +116,16 @@ for step=1:Nsteps
         end
     end
 
-    if (isMoveAccepted && mod(moveCount, numCyclesPrint*N) == 0 && moveCount >= minMoves)
-        % every MC cycle, plot and save the configuration
-        filename = "mc_simulation_frames/" + ...
-            "MC_cycle" + moveCount/N/numCyclesPrint;
-        exportFrameGraphic(filename, L, particlesPosition);
+    if (isMoveAccepted && mod(moveCount, numCyclesPrint*N) == 0)
+        %every nth MC cycle
+        if (moveCount >= minMoves)
+            % if past moveCount which is high enough to consider our system equilibrated,
+            % plot and save the configuration
+            filename = "mc_simulation_frames/" + ...
+                "MC_cycle" + (moveCount-minMoves)/N/numCyclesPrint;
+            exportFrameGraphic(filename, L, particlesPosition, isSaveFigure);
+        end
+        moveCount-minMoves
     end
 end
 
@@ -200,13 +214,22 @@ function U = pairU(dist, rCutoff)
     % calculates the reduced energy according to the pair potential
     % input: dist is a row vector of all pair distances
     % output: U is the total energy 
-    epsilon_adh = 1.0;
-    dist_rCutoff = dist(dist < rCutoff);
-    dist_hard_contact = dist(dist < 1.0);
-    invR = 1./dist_rCutoff;
-    repulsiveLJ = 4*(1-invR.^6).^2; % pair energies, repulsive LJ
-    u_cutoff = 4*epsilon_adh*(1-(1/2.5).^6).^2; % reference: virrueta, o'hern, regan Proteins 2016
-    
+    epsilon_adh = 1;
+    %dist_rCutoff = dist(dist < rCutoff);
+    dist_hard_contact = dist(dist < 1.0); % r < 1
+    dist_rCutoff = dist_hard_contact(dist_hard_contact < rCutoff); % 1 < r < 2.5
+
+    uCut = (1-(1/2.5).^6).^2; % reference: virrueta, o'hern, regan Proteins 2016
+
+    uHard = hardRepulsive(dist_hard_contact) - epsilon_adh * uCut;
+
+    uAttractive = epsilon_adh*(hardRepulsive(dist_rCutoff) - uCut);
+
+    U = sum(uHard+uAttractive);
+end
+
+function U = hardRepulsive(dist)
+    U = (1 - (1./dist).^6).^2; % pair energy for repulsive hard disc
 end
 
 function wallU = wallEnergy(particle, pos, L, radius)
@@ -248,17 +271,19 @@ function plotConfiguration(config, fignum)
     axis off;
 end
 
-function exportFrameGraphic(filename, L, particlesPosition)
+function exportFrameGraphic(filename, L, particlesPosition, isPrint)
     plotConfiguration(particlesPosition, 2)
-    xlim([0,L]*1.1 - 0.05*L)
-    ylim([0,L]*1.1 - 0.05*L)
-    yline(0); yline(L); xline(0); xline(L);
-    exportgraphics(gcf, filename+".tif", 'Resolution', 100);
-
-    clf; hold on;
-    axis equal; axis off;
-    xlim([0,L]*1.1 - 0.05*L)
-    ylim([0,L]*1.1 - 0.05*L)
-    yline(0); yline(L); xline(0); xline(L);
-    exportgraphics(gcf, filename+"_bd.tif", 'Resolution', 100);
+    if (isPrint)
+        xlim([0,L]*1.1 - 0.05*L)
+        ylim([0,L]*1.1 - 0.05*L)
+        yline(0); yline(L); xline(0); xline(L);
+        exportgraphics(gcf, filename+".tif", 'Resolution', 100);
+    
+        clf; hold on;
+        axis equal; axis off;
+        xlim([0,L]*1.1 - 0.05*L)
+        ylim([0,L]*1.1 - 0.05*L)
+        yline(0); yline(L); xline(0); xline(L);
+        exportgraphics(gcf, filename+"_bd.tif", 'Resolution', 100);
+    end
 end
