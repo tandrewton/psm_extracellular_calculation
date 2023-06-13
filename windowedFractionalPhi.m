@@ -13,31 +13,70 @@
 %%
 close all; clear; 
 set(0,'DefaultFigureWindowStyle','docked')
-fontsize(gcf,28,"points")
+fontsize(gcf,14,"points")
 folder = "images_for_andrew/";
-imageFile = "cdh2_10_1.tif";
+%imageSets = dir(fullfile(folder, '*itga5--cdh2--*'));
+imageSets = dir(fullfile(folder, '*cdh2_*'));
 
-windowLengthPixels = 60;
+% for the histograms
+figure(2); hold on; tiledlayout(1, length(imageSets));
 
-randWindowPackingFractions = [];
-firstFrame = 21;
-lastFrame = 50;
-for ff=firstFrame:lastFrame
-    psm_raw = imread(folder+imageFile, 3 + (ff-1)*4);
-    psm_mask = imread(folder+imageFile, 4 + (ff-1)*4);
-    % read in image
-    I = psm_raw > 1;
-    figure(1); 
-    imshow(I)
-
-    [pct, n] = randWindowImageCountsFractional(I, windowLengthPixels, psm_mask, 1000);
-    randWindowPackingFractions = [randWindowPackingFractions 1-pct];
+for gg=1:length(imageSets)
+    genotypeInfo = imageSets(gg).name;
+    imageFile = genotypeInfo;
+    
+    randWindowPackingFractions = [];
+    randWindowN = [];
+    
+    psm_cells_all = readstack(folder + imageFile, 2, 4);
+    psm_raw_all = readstack(folder + imageFile, 3, 4);
+    psm_mask_all = readstack(folder + imageFile, 4, 4);
+    pixelSeparation = 0.2075665; % microns
+    voxelDepthRatio = 1/pixelSeparation; % FIJI metadata
+    windowLengthPixels = round(20/pixelSeparation); % 20 microns
+    
+    %imshow(permute(imresize(squeeze(psm_raw_all(50,:,:)),[510 67*voxelDepthRatio],'nearest'),[2 1 3]));
+    
+    firstFrame = 1;
+    %lastFrame = firstFrame + 9;
+    lastFrame = length(psm_raw_all(:,1,1));
+    
+    for ff=firstFrame:lastFrame
+        [yDim xDim zDim] = size(psm_raw_all);
+        psm_raw = permute(imresize(squeeze(psm_raw_all(ff,:,:)),[xDim zDim*voxelDepthRatio],'nearest'),[2 1 3]);
+        psm_mask = permute(imresize(squeeze(psm_mask_all(ff,:,:)),[xDim zDim*voxelDepthRatio],'nearest'), [2 1 3]);
+        % read in image
+        I = psm_raw > 1;
+        figure(1); 
+        imshow(I)
+        if (mod(ff,5) == 0 && false)
+            figure(3+ff);
+            imshow(permute(imresize(squeeze(psm_cells_all(ff,:,:)),[xDim zDim*voxelDepthRatio],'nearest'), [2 1 3]))
+        end
+        [pct, n] = randWindowImageCountsFractional(I, windowLengthPixels, psm_mask, 1000);
+        randWindowPackingFractions = [randWindowPackingFractions 1-pct];
+        randWindowN = [randWindowN n];
+    end
+    
+    % transform to weighted histogram
+    binedges = 0:0.02:1;
+    % get hist inds b for each bin
+    [b,~] = discretize(randWindowPackingFractions, binedges); 
+    % accumulate weights N into inds b
+    c = accumarray(b', randWindowN'); 
+    % zero pad
+    randWindowBinCounts = [c;zeros(numel(binedges)-1-numel(c),1)]; 
+    
+    %figure(); hold on;
+    figure(2);
+    nexttile; hold on;
+    title(genotypeInfo(1:end-4),'interpreter', 'none')
+    histogram('binedges', binedges, 'bincounts', randWindowBinCounts','normalization', 'pdf');
+    xlim([0 1])
+    xticks([0, 0.2, 0.4, 0.6, 0.8, 1])
+    ylim([0 10])
+    xlabel("\phi")
+    ylabel("P(\phi)")
+    set(gca,"Fontsize", 14)
+    axis square
 end
-figure(); hold on;
-histogram(randWindowPackingFractions, 'normalization', 'pdf')
-xlim([0 1])
-ylim([0 5])
-xlabel("\phi")
-ylabel("P(\phi)")
-set(gca,"Fontsize", 26)
-axis square
