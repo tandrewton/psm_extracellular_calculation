@@ -20,16 +20,16 @@ end
     % continue sampling windows until there are numSamples data points
     while (length(pct) < numSamples)
         % pick random windows within the image boundaries
-        r=randi([sideLen, size(image,1)- sideLen]);
-        c=randi([sideLen, size(image,2)- sideLen]);
+        r=randi([1, size(image,1)- sideLen]);
+        c=randi([1, size(image,2)- sideLen]);
         assert(r+gap < size(image,1));
         assert(c+gap < size(image,2));
 
         % relpsm is the section of psm (mask) according to the window with
         % origin at (r,c)
         relpsm=psm(r:r+gap, c:c+gap); 
+        relim = image(r:r+gap, c:c+gap);
         if sum(relpsm, "all") == sideLen^2 % box of interest entirely within tissue mask
-            relim = image(r:r+gap, c:c+gap);
             pct=[pct, sum(relim, 'all')/sideLen^2];
             n=[n, 1];
         elseif sum(relpsm, "all")/(sideLen^2)>=cutoff % box of interest partially within tissue mask
@@ -37,12 +37,18 @@ end
             row=row+r-1;
             col=col+c-1; 
             % row, col are now the indices of image that are both within the box and within the tissue mask
-            ind=sub2ind(size(image), row, col);
-            pct=[pct, sum(image(ind))/length(ind)];
+            %ind=sub2ind(size(image), row, col);
+            relpix = relim(relpsm);
+            % can speed this up by not using sub2ind
+            % instead, use relpix = relim(relpsm)
+            % and pct, sum(relpix)/length(relpix)
+            %pct=[pct, sum(image(ind))/length(ind)];
+            pct=[pct, sum(relpix)/length(relpix)];
             % pct[end] is now the total # of white pixels (within overlap region)
             % divided by the total # pixels (within overlap region)
             % so its the packing fraction of a subset of a window
-            n=[n, length(ind)/(sideLen^2)];
+            %n=[n, length(ind)/(sideLen^2)];
+            n=[n, length(relpix)/(sideLen^2)];
         else
             % window does not overlap enough with the mask, skip
         end
