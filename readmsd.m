@@ -12,6 +12,7 @@ T = readtable(filename);
 figure(1); clf; hold on;
 
 uniqueSamples = unique(T.sample);
+timeSpacing = 3; % minutes
 
 for sampleNum = 1:length(uniqueSamples)
     % get table rows where sample col matches the unique sample ID
@@ -28,18 +29,25 @@ for sampleNum = 1:length(uniqueSamples)
     end
     msd = mean(msd, 'omitnan')/(pi*25);
     msd = msd(~isnan(msd));
-    plot(msd,'linewidth',2)
-    xlabel('Time')
+    plot((0:length(msd)-1)*timeSpacing,msd,'linewidth',2)
+    xlabel('Time (min)')
     ylabel('MSD/a0')
     
     % plot a power law
     % Define the power law model
     powerLawModel = @(A, B, x) A * x.^B;
     
-    halfInd = round(length(msd)/2);
+    startInd = round(length(msd)/4);
     % Perform the fit
     initialGuess = [0, 0]; % Initial guess for coefficients A and B
-    fitResult = fit((halfInd:length(msd))', msd(halfInd:end)', powerLawModel, 'StartPoint', initialGuess);
+    fitResult = fit((startInd:length(msd))'*timeSpacing, msd(startInd:end)', powerLawModel, 'StartPoint', initialGuess);
     %plot(fitResult, 'k--');% sprintf('Fit: A=%0.2f, B=%0.2f', fitResult.A, fitResult.B));
     sprintf('Fit: A=%0.2f, B=%0.2f', fitResult.A, fitResult.B)
 end
+
+set(gca, 'XScale', 'log', 'YScale', 'log')
+xref = 10.^(0.2:.1:2.5);
+plot(xref,10^-2*xref, 'k--', 'linewidth', 2)
+%plot(xref, 10^-2*xref.^1.3,'o--', 'linewidth', 2)
+%plot(xref, 10^-2*xref.^1.5,'b--', 'linewidth', 2)
+plot(xref, 10^-2*xref.^2,'r--', 'linewidth', 2)
