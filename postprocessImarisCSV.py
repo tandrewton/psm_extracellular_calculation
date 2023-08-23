@@ -4,29 +4,11 @@ import matplotlib.pyplot as plt
 from scipy.optimize import curve_fit
 import debugpy
 
-# Read the CSV file
-filename = "/Users/AndrewTon/Downloads/MSD_wt.csv"
-T = pd.read_csv(filename)
 
-# Set plot settings
-plt.rcParams["figure.figsize"] = (10, 6)
-plt.rcParams["font.size"] = 24
+def calculate_msd(sample_data, unique_track_ids):
+    max_norm_time = sample_data["normTime"].max()
+    msd = np.full((len(unique_track_ids), max_norm_time), np.nan)
 
-# Initialize variables
-time_spacing = 3  # minutes
-
-plt.figure()
-
-# Loop over unique samples
-unique_samples = T["sample"].unique()
-for sample_num in range(len(unique_samples)):
-    # Filter data for the current sample
-    sample_data = T[T["sample"] == unique_samples[sample_num]]
-    unique_track_ids = sample_data["TrackID"].unique()
-
-    msd = np.full((len(unique_track_ids), sample_data["normTime"].max()), np.nan)
-
-    # Loop over unique TrackIDs
     for ii in range(len(unique_track_ids)):
         track_data = sample_data[sample_data["TrackID"] == unique_track_ids[ii]]
         norm_time = track_data["normTime"].values
@@ -40,14 +22,10 @@ for sample_num in range(len(unique_samples)):
             )
 
     msd = np.nanmean(msd, axis=0) / (np.pi * 25)
-    msd = msd[~np.isnan(msd)]
+    return msd[~np.isnan(msd)]
 
-    print("plotting msd")
-    plt.plot(np.arange(len(msd)) * time_spacing, msd, linewidth=2)
-    plt.xlabel("Time (min)")
-    plt.ylabel("MSD/a0")
 
-    # Fit a power law model
+def plot_power_law_fits(msd, time_spacing):
     def power_law_model(x, A, B):
         return A * x**B
 
@@ -58,13 +36,44 @@ for sample_num in range(len(unique_samples)):
     fit_A, fit_B = fit_params
     print(f"Fit: A={fit_A:.2f}, B={fit_B:.2f}")
 
-plt.xscale("log")
-plt.yscale("log")
+    xref = np.logspace(0.2, 2.5, num=100)
+    plt.plot(xref, 10**-2 * xref, "k--", linewidth=2)
+    plt.plot(xref, 10**-2 * xref**2, "r--", linewidth=2)
 
-xref = np.logspace(0.2, 2.5, num=100)
-plt.plot(xref, 10**-2 * xref, "k--", linewidth=2)
-plt.plot(xref, 10**-2 * xref**2, "r--", linewidth=2)
-debugpy.breakpoint()
-print("closing program")
 
-plt.show()
+def main():
+    # Read the CSV file
+    filename = "/Users/AndrewTon/Downloads/MSD_wt.csv"
+    time_spacing = 3  # minutes
+    T = pd.read_csv(filename)
+
+    # Set plot settings
+    plt.rcParams["figure.figsize"] = (10, 6)
+    plt.rcParams["font.size"] = 24
+    plt.figure()
+
+    # Loop over unique samples
+    unique_samples = T["sample"].unique()
+    for sample_num in range(len(unique_samples)):
+        # Filter data for the current sample
+        sample_data = T[T["sample"] == unique_samples[sample_num]]
+        unique_track_ids = sample_data["TrackID"].unique()
+
+        msd = calculate_msd(sample_data, unique_track_ids)
+        plt.plot(np.arange(len(msd)) * time_spacing, msd, linewidth=2)
+        plt.xlabel("Time (min)")
+        plt.ylabel("MSD/a0")
+
+    plot_power_law_fits(msd, time_spacing)
+
+    plt.xscale("log")
+    plt.yscale("log")
+
+    debugpy.breakpoint()
+    print("closing program")
+
+    plt.show()
+
+
+if __name__ == "__main__":
+    main()
