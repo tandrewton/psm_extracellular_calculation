@@ -56,8 +56,8 @@ def plot_3d_movie(T):
     y_range_length = y_range_global[1] - y_range_global[0]
     z_range_length = z_range_global[1] - z_range_global[0]
 
-    aspect_ratio_x = y_range_length / x_range_length
-    aspect_ratio_y = z_range_length / y_range_length
+    aspect_ratio_x = x_range_length / z_range_length
+    aspect_ratio_y = y_range_length / z_range_length
     aspect_ratio_z = 1.0
 
     # Create a figure with a 3D scatter plot
