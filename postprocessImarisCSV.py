@@ -3,6 +3,9 @@ import numpy as np
 import matplotlib.pyplot as plt
 import plotly.express as px
 import plotly.graph_objects as go
+from scipy.spatial import Voronoi, Delaunay
+from mpl_toolkits.mplot3d import Axes3D
+from mpl_toolkits.mplot3d.art3d import Poly3DCollection
 from plotly.subplots import make_subplots
 from scipy.optimize import curve_fit
 import debugpy
@@ -98,7 +101,6 @@ def plot_3d_movie(T):
     for frame in frames:
         frame.update(layout=frame_layout)
 
-    debugpy.breakpoint()
     fig.frames = frames
 
     # Define animation settings
@@ -146,9 +148,102 @@ def plot_3d_movie(T):
     fig.show()
 
 
+def validTrackIDs(T, startFrame, windowSize):
+    # loop over unique cell track IDs
+    # calculate range of time points
+    # return trackIDs that persist through the requested time range
+    #   (start frame to start frame + windowSize)
+    unique_track_ids = T["TrackID"].unique()
+    unique_track_ids = [int(k) for k in unique_track_ids]
+    lifetimes = []
+    trackStartStopTimes = np.zeros([len(unique_track_ids), 3])
+
+    for i, trackID in enumerate(unique_track_ids):
+        filtered_data = T[T["TrackID"] == trackID]
+        track_start = filtered_data["Time"].min()
+        track_end = filtered_data["Time"].max()
+        trackStartStopTimes[i] = [
+            trackID,
+            track_start,
+            track_end,
+        ]
+        lifetimes.append(track_end - track_start + 1)
+
+    validIDs = []
+    for i in range(1, T["Time"].max() - windowSize + 1):
+        counter = 0
+        for j in trackStartStopTimes:
+            if j[1] <= i and j[2] >= i + windowSize:
+                counter += 1
+                if i == startFrame:
+                    validIDs.append(j[0])
+        print(
+            "starting at frame i = ",
+            i,
+            ", detected ",
+            counter,
+            " tracks that persist the duration of ",
+            windowSize,
+            " frames!",
+        )
+
+    # plot lifetimes
+    plt.hist(lifetimes, bins=20, edgecolor="black")
+    plt.xlabel("cell track lifetime")
+    plt.ylabel("Frequency")
+    return np.array(validIDs)
+
+
+def create_voronoi_plot(cells, fig, ax):
+    # fig, ax = plt.subplots()
+    for i, cell in enumerate(cells):
+        polygon = cell["vertices"]
+        ax.fill(*zip(*polygon), facecolor="none", edgecolor="k", lw=0.2)
+        ax.text(cell["original"][0], cell["original"][1], str(i))
+    return None
+
+
+def calculateNeighborExchanges(T, trackIDs, startFrame, windowSize):
+    # for tracks labeled by trackIDs,
+    #  compute neighbor exchanges that occur between frames, starting at startFrame and ending at startFrame + windowSize
+    filtered_data = T[T["TrackID"].isin(trackIDs)]
+    # plot_3d_movie(filtered_data)
+
+    distances = []
+    for frame in range(startFrame, startFrame + windowSize):
+        frame_data = filtered_data[filtered_data["Time"] == frame]
+        frame_x = np.asarray(frame_data["posx"])
+        frame_y = np.asarray(frame_data["posy"])
+        frame_z = np.asarray(frame_data["posz"])
+        tri = Delaunay(np.column_stack((frame_x, frame_y, frame_z)))
+        indptr_nb, nbs = tri.vertex_neighbor_vertices
+
+        nbDict = {}
+        # Accessing the neighbors
+        for i in range(len(frame_x)):
+            nbDict[i] = nbs[indptr_nb[i] : indptr_nb[i + 1]]
+
+        # neighbor distance histogram
+        for point, neighbors in nbDict.items():
+            for neighbor in neighbors:
+                distances.append(
+                    np.sqrt(np.sum((tri.points[point] - tri.points[neighbor]) ** 2))
+                )
+
+    plt.figure()
+    plt.hist(distances, bins=600, color="blue", alpha=0.7)
+    plt.xlabel(r"Distance between points ($\mu$m)")
+    plt.ylabel("Counts")
+
+    distances = np.array(distances)
+
+    debugpy.breakpoint()
+    print("done calculating neighbor exchanges")
+
+
 def main():
     # Read the CSV file
-    filename = "/Users/AndrewTon/Downloads/MSD_wt.csv"
+    filename = "/Users/AndrewTon/Downloads/MSD_wt3.csv"
     time_spacing = 3  # minutes
     T = pd.read_csv(filename)
 
@@ -162,8 +257,19 @@ def main():
         # Filter data for the current sample
         sample_data = T[T["sample"] == unique_samples[sample_num]]
         unique_track_ids = sample_data["TrackID"].unique()
-        plot_3d_movie(sample_data)
+
+        # plot_3d_movie(sample_data)
+
+        # get the trackIDs of tracks that persist from frame 1 to half the movie duration
+        halfMovieDuration = int(sample_data["Time"].max() / 2)
+        persistingTrackIDs = validTrackIDs(sample_data, 1, halfMovieDuration)
+
+        calculateNeighborExchanges(
+            sample_data, persistingTrackIDs, 1, halfMovieDuration
+        )
+
         print("leaving sample loop")
+        debugpy.breakpoint()
 
         # msd = calculate_msd(sample_data, unique_track_ids)
         # plt.plot(np.arange(len(msd)) * time_spacing, msd, linewidth=2)
@@ -174,7 +280,6 @@ def main():
     # plt.xscale("log")
     # plt.yscale("log")
 
-    debugpy.breakpoint()
     print("closing program")
 
     plt.show()
