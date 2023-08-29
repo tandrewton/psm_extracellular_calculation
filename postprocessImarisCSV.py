@@ -149,8 +149,6 @@ def plot_3d_movie(T):
 
 
 def validTrackIDs(T, startFrame, windowSize):
-    # loop over unique cell track IDs
-    # calculate range of time points
     # return trackIDs that persist through the requested time range
     #   (start frame to start frame + windowSize)
     unique_track_ids = T["TrackID"].unique()
@@ -158,25 +156,30 @@ def validTrackIDs(T, startFrame, windowSize):
     lifetimes = []
     trackStartStopTimes = np.zeros([len(unique_track_ids), 3])
 
+    # loop over unique cell track IDs, calculate the starting and ending Time of each trackID
     for i, trackID in enumerate(unique_track_ids):
         filtered_data = T[T["TrackID"] == trackID]
         track_start = filtered_data["Time"].min()
         track_end = filtered_data["Time"].max()
         trackStartStopTimes[i] = [
-            trackID,
-            track_start,
-            track_end,
+            int(trackID),
+            int(track_start),
+            int(track_end),
         ]
         lifetimes.append(track_end - track_start + 1)
+    debugpy.breakpoint()
 
+    # calculate # tracks along all windows of size windowSize
+    # only record the trackIDs for a window beginning at startFrame and ending at startFrame+windowSize
     validIDs = []
     for i in range(1, T["Time"].max() - windowSize + 1):
         counter = 0
         for j in trackStartStopTimes:
-            if j[1] <= i and j[2] >= i + windowSize:
+            if j[1] <= i and j[2] > i + windowSize:
                 counter += 1
                 if i == startFrame:
                     validIDs.append(j[0])
+                    print("valid ID: ", j[0], j[1], j[2])
         print(
             "starting at frame i = ",
             i,
@@ -249,8 +252,6 @@ def calculateNeighborExchanges(T, trackIDs, startFrame, windowSize):
     numberNearestNeighbors = []
     filteredNeighborsPerFrame = []
 
-    debugpy.breakpoint()
-
     for frame in range(startFrame, startFrame + windowSize):
         frame_data = filtered_data[filtered_data["Time"] == frame]
         points = frame_data[["posx", "posy", "posz"]].values
@@ -282,6 +283,7 @@ def calculateNeighborExchanges(T, trackIDs, startFrame, windowSize):
             nbDictFiltered[point] = thresholdedNeighbors
 
         filteredNeighborsPerFrame.append(nbDictFiltered)
+        debugpy.breakpoint()
 
     # use filtered neighbor dictionaries to calculate neighbor exchanges
     for frame, filteredNeighborDict in enumerate(filteredNeighborsPerFrame[:-1]):
