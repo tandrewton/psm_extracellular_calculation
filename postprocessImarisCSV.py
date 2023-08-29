@@ -203,19 +203,63 @@ def create_voronoi_plot(cells, fig, ax):
     return None
 
 
+def plot_tri(ax, points, tri, distanceThreshold):
+    # plot edges of the delaunay triangulation, but omit any edges with distance greater than a distance threshold
+    edges = collect_edges(tri)
+    x = np.array([])
+    y = np.array([])
+    z = np.array([])
+    for i, j in edges:
+        if np.sqrt(np.sum((points[i] - points[j]) ** 2)) < distanceThreshold:
+            x = np.append(x, [points[i, 0], points[j, 0], np.nan])
+            y = np.append(y, [points[i, 1], points[j, 1], np.nan])
+            z = np.append(z, [points[i, 2], points[j, 2], np.nan])
+    ax.plot3D(x, y, z, color="k", lw="1")
+    ax.scatter(points[:, 0], points[:, 1], points[:, 2], color="r", alpha=0.5)
+
+
+def collect_edges(tri):
+    edges = set()
+
+    def sorted_tuple(a, b):
+        return (a, b) if a < b else (b, a)
+
+    # Add edges of tetrahedron (sorted so we don't add an edge twice, even if it comes in reverse order).
+    for i0, i1, i2, i3 in tri.simplices:
+        edges.add(sorted_tuple(i0, i1))
+        edges.add(sorted_tuple(i0, i2))
+        edges.add(sorted_tuple(i0, i3))
+        edges.add(sorted_tuple(i1, i2))
+        edges.add(sorted_tuple(i1, i3))
+        edges.add(sorted_tuple(i2, i3))
+    return edges
+
+
 def calculateNeighborExchanges(T, trackIDs, startFrame, windowSize):
     # for tracks labeled by trackIDs,
     #  compute neighbor exchanges that occur between frames, starting at startFrame and ending at startFrame + windowSize
     filtered_data = T[T["TrackID"].isin(trackIDs)]
+    globalXLim = min(filtered_data["posx"]), max(filtered_data["posx"])
+    globalYLim = min(filtered_data["posy"]), max(filtered_data["posy"])
+    globalZLim = min(filtered_data["posz"]), max(filtered_data["posz"])
     # plot_3d_movie(filtered_data)
 
+    DelaunayEdgeDistanceThreshold = 10  # microns
     distances = []
+    numberNearestNeighbors = []
     for frame in range(startFrame, startFrame + windowSize):
         frame_data = filtered_data[filtered_data["Time"] == frame]
         frame_x = np.asarray(frame_data["posx"])
         frame_y = np.asarray(frame_data["posy"])
         frame_z = np.asarray(frame_data["posz"])
-        tri = Delaunay(np.column_stack((frame_x, frame_y, frame_z)))
+        points = np.column_stack((frame_x, frame_y, frame_z))
+        tri = Delaunay(points)
+        fig = plt.figure()
+        ax = plt.axes(projection="3d")
+        ax.set_xlim3d(globalXLim[0], globalXLim[1])
+        ax.set_ylim3d(globalYLim[0], globalYLim[1])
+        ax.set_zlim3d(globalZLim[0], globalZLim[1])
+        plot_tri(ax, points, tri, DelaunayEdgeDistanceThreshold)
         indptr_nb, nbs = tri.vertex_neighbor_vertices
 
         nbDict = {}
@@ -225,17 +269,27 @@ def calculateNeighborExchanges(T, trackIDs, startFrame, windowSize):
 
         # neighbor distance histogram
         for point, neighbors in nbDict.items():
+            neighborCount = 0
             for neighbor in neighbors:
-                distances.append(
-                    np.sqrt(np.sum((tri.points[point] - tri.points[neighbor]) ** 2))
+                neighborDistances = np.sqrt(
+                    np.sum((tri.points[point] - tri.points[neighbor]) ** 2)
                 )
+                distances.append(neighborDistances)
+                neighborCount += np.sum(
+                    neighborDistances < DelaunayEdgeDistanceThreshold
+                )
+            numberNearestNeighbors.append(neighborCount)
 
+    debugpy.breakpoint()
     plt.figure()
-    plt.hist(distances, bins=600, color="blue", alpha=0.7)
+    plt.hist(distances, bins=50, range=[0, 50], color="blue", alpha=0.7)
     plt.xlabel(r"Distance between points ($\mu$m)")
     plt.ylabel("Counts")
 
-    distances = np.array(distances)
+    plt.figure()
+    plt.hist(numberNearestNeighbors, bins=15, range=[0, 15], color="blue", alpha=0.7)
+    plt.xlabel(r"Neighbors")
+    plt.ylabel("Counts")
 
     debugpy.breakpoint()
     print("done calculating neighbor exchanges")
