@@ -247,40 +247,51 @@ def calculateNeighborExchanges(T, trackIDs, startFrame, windowSize):
     DelaunayEdgeDistanceThreshold = 10  # microns
     distances = []
     numberNearestNeighbors = []
+    filteredNeighborsPerFrame = []
+
+    debugpy.breakpoint()
+
     for frame in range(startFrame, startFrame + windowSize):
         frame_data = filtered_data[filtered_data["Time"] == frame]
-        frame_x = np.asarray(frame_data["posx"])
-        frame_y = np.asarray(frame_data["posy"])
-        frame_z = np.asarray(frame_data["posz"])
-        points = np.column_stack((frame_x, frame_y, frame_z))
+        points = frame_data[["posx", "posy", "posz"]].values
+        print("len points = ", len(points))
         tri = Delaunay(points)
-        fig = plt.figure()
+        """fig = plt.figure()
         ax = plt.axes(projection="3d")
         ax.set_xlim3d(globalXLim[0], globalXLim[1])
         ax.set_ylim3d(globalYLim[0], globalYLim[1])
         ax.set_zlim3d(globalZLim[0], globalZLim[1])
         plot_tri(ax, points, tri, DelaunayEdgeDistanceThreshold)
+        """
         indptr_nb, nbs = tri.vertex_neighbor_vertices
 
-        nbDict = {}
-        # Accessing the neighbors
-        for i in range(len(frame_x)):
-            nbDict[i] = nbs[indptr_nb[i] : indptr_nb[i + 1]]
+        nbDict = {i: nbs[indptr_nb[i] : indptr_nb[i + 1]] for i in range(len(points))}
+        nbDictFiltered = {}
 
-        # neighbor distance histogram
+        # loop through the dictionary; store neighbor distances for a histogram, and count/store neighbors that are below a distance threshold
         for point, neighbors in nbDict.items():
-            neighborCount = 0
+            thresholdedNeighbors = []
             for neighbor in neighbors:
-                neighborDistances = np.sqrt(
+                neighborDistance = np.sqrt(
                     np.sum((tri.points[point] - tri.points[neighbor]) ** 2)
                 )
-                distances.append(neighborDistances)
-                neighborCount += np.sum(
-                    neighborDistances < DelaunayEdgeDistanceThreshold
-                )
-            numberNearestNeighbors.append(neighborCount)
+                distances.append(neighborDistance)
+                if neighborDistance < DelaunayEdgeDistanceThreshold:
+                    thresholdedNeighbors.append(neighbor)
+            numberNearestNeighbors.append(len(thresholdedNeighbors))
+            nbDictFiltered[point] = thresholdedNeighbors
 
-    debugpy.breakpoint()
+        filteredNeighborsPerFrame.append(nbDictFiltered)
+
+    # use filtered neighbor dictionaries to calculate neighbor exchanges
+    for frame, filteredNeighborDict in enumerate(filteredNeighborsPerFrame[:-1]):
+        nextFrame = frame + 1
+        for point, neighbors in filteredNeighborDict.items():
+            diff = set(neighbors) ^ set(filteredNeighborsPerFrame[nextFrame][point])
+            if diff:
+                print("testing set diff")
+                debugpy.breakpoint()
+
     plt.figure()
     plt.hist(distances, bins=50, range=[0, 50], color="blue", alpha=0.7)
     plt.xlabel(r"Distance between points ($\mu$m)")
