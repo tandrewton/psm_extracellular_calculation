@@ -167,7 +167,6 @@ def validTrackIDs(T, startFrame, windowSize):
             int(track_end),
         ]
         lifetimes.append(track_end - track_start + 1)
-    debugpy.breakpoint()
 
     # calculate # tracks along all windows of size windowSize
     # only record the trackIDs for a window beginning at startFrame and ending at startFrame+windowSize
@@ -238,8 +237,33 @@ def collect_edges(tri):
     return edges
 
 
+def interpolateMissingTracks(T, frame_data, frameNum, missingTrackIDs):
+    newRows = []
+    for id in missingTrackIDs:
+        # if one of frameNum-1 or frameNum+1 does not exist, it should just default to the existing one, which is interpolation when both exist, and copying if only one exists
+        rowsToInterpolate = T[
+            (T["TrackID"] == id)
+            & ((T["Time"] == frameNum - 1) | (T["Time"] == frameNum + 1))
+        ].copy()
+        # store average between the two rows in column_averages, then add it to the dataframe
+        column_averages = {}
+        for column in rowsToInterpolate.columns:
+            unique_values = rowsToInterpolate[column].unique()
+
+            # Check if the column has more than one unique value
+            if len(unique_values) > 1:
+                # Calculate the average of the column
+                average = np.mean(unique_values)
+                column_averages[column] = average
+            else:
+                # If only one unique value, store it directly
+                column_averages[column] = unique_values[0]
+        newRows.append(column_averages)
+    return newRows
+
+
 def calculateNeighborExchanges(T, trackIDs, startFrame, windowSize):
-    # for tracks labeled by trackIDs,
+    # for tracks labeled by trackIDs, which are guaranteed to be born by startFrame and to die after startFrame + windowSize,
     #  compute neighbor exchanges that occur between frames, starting at startFrame and ending at startFrame + windowSize
     filtered_data = T[T["TrackID"].isin(trackIDs)]
     globalXLim = min(filtered_data["posx"]), max(filtered_data["posx"])
@@ -254,7 +278,16 @@ def calculateNeighborExchanges(T, trackIDs, startFrame, windowSize):
 
     for frame in range(startFrame, startFrame + windowSize):
         frame_data = filtered_data[filtered_data["Time"] == frame]
-        points = frame_data[["posx", "posy", "posz"]].values
+        # calculate which trackIDs are not in frame_data
+        missingTrackIDs = set(filtered_data["TrackID"]) - set(frame_data["TrackID"])
+        #  use interpolation to generate a row for each of those missing trackIDs in this frame
+        newRows = pd.DataFrame(
+            interpolateMissingTracks(T, frame_data, frame, missingTrackIDs)
+        )
+        # add the new rows, then sort by trackID values in order to have a consistent
+        frame_data = pd.concat([frame_data, newRows], ignore_index=True)
+        frame_data_sorted = frame_data.sort_values(by="TrackID")
+        points = frame_data_sorted[["posx", "posy", "posz"]].values
         print("len points = ", len(points))
         tri = Delaunay(points)
         """fig = plt.figure()
@@ -310,7 +343,8 @@ def calculateNeighborExchanges(T, trackIDs, startFrame, windowSize):
 
 def main():
     # Read the CSV file
-    filename = "/Users/AndrewTon/Downloads/MSD_wt3.csv"
+    # filename = "/Users/AndrewTon/Downloads/cdh_MSD.csv"
+    filename = "/Users/AndrewTon/Downloads/MSD_wt.csv"
     time_spacing = 3  # minutes
     T = pd.read_csv(filename)
 
