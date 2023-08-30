@@ -288,15 +288,13 @@ def calculateNeighborExchanges(T, trackIDs, startFrame, windowSize):
         frame_data = pd.concat([frame_data, newRows], ignore_index=True)
         frame_data_sorted = frame_data.sort_values(by="TrackID")
         points = frame_data_sorted[["posx", "posy", "posz"]].values
-        print("len points = ", len(points))
         tri = Delaunay(points)
-        """fig = plt.figure()
+        fig = plt.figure()
         ax = plt.axes(projection="3d")
         ax.set_xlim3d(globalXLim[0], globalXLim[1])
         ax.set_ylim3d(globalYLim[0], globalYLim[1])
         ax.set_zlim3d(globalZLim[0], globalZLim[1])
         plot_tri(ax, points, tri, DelaunayEdgeDistanceThreshold)
-        """
         indptr_nb, nbs = tri.vertex_neighbor_vertices
 
         nbDict = {i: nbs[indptr_nb[i] : indptr_nb[i + 1]] for i in range(len(points))}
