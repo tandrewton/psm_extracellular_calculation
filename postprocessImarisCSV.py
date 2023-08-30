@@ -178,16 +178,6 @@ def validTrackIDs(T, startFrame, windowSize):
                 counter += 1
                 if i == startFrame:
                     validIDs.append(j[0])
-                    print("valid ID: ", j[0], j[1], j[2])
-        print(
-            "starting at frame i = ",
-            i,
-            ", detected ",
-            counter,
-            " tracks that persist the duration of ",
-            windowSize,
-            " frames!",
-        )
 
     # plot lifetimes
     plt.hist(lifetimes, bins=20, edgecolor="black")
@@ -275,6 +265,7 @@ def calculateNeighborExchanges(T, trackIDs, startFrame, windowSize):
     distances = []
     numberNearestNeighbors = []
     filteredNeighborsPerFrame = []
+    neighborExchangePerFrame = []
 
     for frame in range(startFrame, startFrame + windowSize):
         frame_data = filtered_data[filtered_data["Time"] == frame]
@@ -289,12 +280,14 @@ def calculateNeighborExchanges(T, trackIDs, startFrame, windowSize):
         frame_data_sorted = frame_data.sort_values(by="TrackID")
         points = frame_data_sorted[["posx", "posy", "posz"]].values
         tri = Delaunay(points)
+        """
         fig = plt.figure()
         ax = plt.axes(projection="3d")
         ax.set_xlim3d(globalXLim[0], globalXLim[1])
         ax.set_ylim3d(globalYLim[0], globalYLim[1])
         ax.set_zlim3d(globalZLim[0], globalZLim[1])
         plot_tri(ax, points, tri, DelaunayEdgeDistanceThreshold)
+        """
         indptr_nb, nbs = tri.vertex_neighbor_vertices
 
         nbDict = {i: nbs[indptr_nb[i] : indptr_nb[i + 1]] for i in range(len(points))}
@@ -314,16 +307,16 @@ def calculateNeighborExchanges(T, trackIDs, startFrame, windowSize):
             nbDictFiltered[point] = thresholdedNeighbors
 
         filteredNeighborsPerFrame.append(nbDictFiltered)
-        debugpy.breakpoint()
 
     # use filtered neighbor dictionaries to calculate neighbor exchanges
     for frame, filteredNeighborDict in enumerate(filteredNeighborsPerFrame[:-1]):
+        neighborExchanges = 0
         nextFrame = frame + 1
         for point, neighbors in filteredNeighborDict.items():
             diff = set(neighbors) ^ set(filteredNeighborsPerFrame[nextFrame][point])
             if diff:
-                print("testing set diff")
-                debugpy.breakpoint()
+                neighborExchanges += 1
+        neighborExchangePerFrame.append(neighborExchanges)
 
     plt.figure()
     plt.hist(distances, bins=50, range=[0, 50], color="blue", alpha=0.7)
@@ -335,52 +328,70 @@ def calculateNeighborExchanges(T, trackIDs, startFrame, windowSize):
     plt.xlabel(r"Neighbors")
     plt.ylabel("Counts")
 
-    debugpy.breakpoint()
     print("done calculating neighbor exchanges")
+
+    return np.array(neighborExchangePerFrame)
 
 
 def main():
-    # Read the CSV file
-    # filename = "/Users/AndrewTon/Downloads/cdh_MSD.csv"
-    filename = "/Users/AndrewTon/Downloads/MSD_wt.csv"
+    wt_filename1 = "/Users/AndrewTon/Downloads/MSD_wt.csv"
+    wt_filename2 = "/Users/AndrewTon/Downloads/MSD_wt3.csv"
+    cdh_filename = "/Users/AndrewTon/Downloads/cdh_MSD.csv"
+    files = [wt_filename1, wt_filename2, cdh_filename]
+
     time_spacing = 3  # minutes
-    T = pd.read_csv(filename)
+    for filename in files:
+        print("current file is: ", filename)
+        T = pd.read_csv(filename)
 
-    # Set plot settings
-    plt.rcParams["figure.figsize"] = (10, 6)
-    plt.rcParams["font.size"] = 24
+        # Set plot settings
+        plt.rcParams["figure.figsize"] = (10, 6)
+        plt.rcParams["font.size"] = 24
 
-    # Loop over unique samples
-    unique_samples = T["sample"].unique()
-    for sample_num in range(len(unique_samples)):
-        # Filter data for the current sample
-        sample_data = T[T["sample"] == unique_samples[sample_num]]
-        unique_track_ids = sample_data["TrackID"].unique()
+        # Loop over unique samples
+        unique_samples = T["sample"].unique()
+        for sample_num in range(len(unique_samples)):
+            print("current sample is :", unique_samples[sample_num])
+            # Filter data for the current sample
+            sample_data = T[T["sample"] == unique_samples[sample_num]]
+            # plot_3d_movie(sample_data)
 
-        # plot_3d_movie(sample_data)
+            # get the trackIDs of tracks that persist from frame 1 to half the movie duration
+            halfMovieDuration = int(sample_data["Time"].max() / 2)
+            persistingTrackIDs = validTrackIDs(sample_data, 1, halfMovieDuration)
 
-        # get the trackIDs of tracks that persist from frame 1 to half the movie duration
-        halfMovieDuration = int(sample_data["Time"].max() / 2)
-        persistingTrackIDs = validTrackIDs(sample_data, 1, halfMovieDuration)
+            neighborExchangePerFrame = calculateNeighborExchanges(
+                sample_data, persistingTrackIDs, 1, halfMovieDuration
+            )
 
-        calculateNeighborExchanges(
-            sample_data, persistingTrackIDs, 1, halfMovieDuration
-        )
+            # print("exchange per frame:", neighborExchangePerFrame)
+            # print(
+            #    "exchange per cell per minute: ",
+            #    neighborExchangePerFrame / len(persistingTrackIDs) / time_spacing,
+            # )
+            neighborExchangePerFrame = (
+                neighborExchangePerFrame / len(persistingTrackIDs) / time_spacing
+            )
+            print(
+                "exchange per cell per minute : ",
+                np.mean(neighborExchangePerFrame),
+                " +/- ",
+                np.std(neighborExchangePerFrame),
+            )
 
-        print("leaving sample loop")
-        debugpy.breakpoint()
+            print("leaving sample loop")
+            debugpy.breakpoint()
 
-        # msd = calculate_msd(sample_data, unique_track_ids)
-        # plt.plot(np.arange(len(msd)) * time_spacing, msd, linewidth=2)
-        # plt.xlabel("Time (min)")
-        # plt.ylabel("MSD/a0")
+            # msd = calculate_msd(sample_data, sample_data["TrackID"].unique())
+            # plt.plot(np.arange(len(msd)) * time_spacing, msd, linewidth=2)
+            # plt.xlabel("Time (min)")
+            # plt.ylabel("MSD/a0")
 
-    # plot_power_law_fits(msd, time_spacing)
-    # plt.xscale("log")
-    # plt.yscale("log")
+        # plot_power_law_fits(msd, time_spacing)
+        # plt.xscale("log")
+        # plt.yscale("log")
 
     print("closing program")
-
     plt.show()
 
 
