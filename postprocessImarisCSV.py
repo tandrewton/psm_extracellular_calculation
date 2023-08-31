@@ -261,7 +261,7 @@ def calculateNeighborExchanges(T, trackIDs, startFrame, windowSize):
     globalZLim = min(filtered_data["posz"]), max(filtered_data["posz"])
     # plot_3d_movie(filtered_data)
 
-    DelaunayEdgeDistanceThreshold = 10  # microns
+    DelaunayEdgeDistanceThreshold = 12  # microns
     distances = []
     numberNearestNeighbors = []
     filteredNeighborsPerFrame = []
@@ -339,6 +339,8 @@ def main():
     cdh_filename = "/Users/AndrewTon/Downloads/cdh_MSD.csv"
     files = [wt_filename1, wt_filename2, cdh_filename]
 
+    NE_rate = []
+
     time_spacing = 3  # minutes
     for filename in files:
         print("current file is: ", filename)
@@ -358,6 +360,7 @@ def main():
 
             # get the trackIDs of tracks that persist from frame 1 to half the movie duration
             halfMovieDuration = int(sample_data["Time"].max() / 2)
+            # halfMovieDuration = int(sample_data["Time"].max()) - 2
             persistingTrackIDs = validTrackIDs(sample_data, 1, halfMovieDuration)
 
             neighborExchangePerFrame = calculateNeighborExchanges(
@@ -378,9 +381,7 @@ def main():
                 " +/- ",
                 np.std(neighborExchangePerFrame),
             )
-
-            print("leaving sample loop")
-            debugpy.breakpoint()
+            NE_rate.append(np.mean(neighborExchangePerFrame))
 
             # msd = calculate_msd(sample_data, sample_data["TrackID"].unique())
             # plt.plot(np.arange(len(msd)) * time_spacing, msd, linewidth=2)
@@ -390,6 +391,23 @@ def main():
         # plot_power_law_fits(msd, time_spacing)
         # plt.xscale("log")
         # plt.yscale("log")
+
+    debugpy.breakpoint()
+
+    plt.figure()
+    NE_dict = {"WT": NE_rate[0:3], "cdh": NE_rate[3:6]}
+    x_ticks = []
+    Y = []
+    for key, values in NE_dict.items():
+        x_ticks.extend([key] * len(values))
+        Y.extend(values)
+    X = np.array(x_ticks)
+    X[X == "WT"] = 0
+    X[X == "cdh"] = 1
+    plt.scatter(X, NE_rate, s=150)
+    plt.xticks(X, x_ticks)
+    plt.xlim([-1, 2])
+    plt.ylabel(r"NE rate (min$^{-1}$)")
 
     print("closing program")
     plt.show()
