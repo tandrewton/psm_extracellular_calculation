@@ -1,5 +1,6 @@
 import pandas as pd
 import numpy as np
+import matplotlib as mpl
 import matplotlib.pyplot as plt
 import plotly.express as px
 import plotly.graph_objects as go
@@ -280,9 +281,54 @@ def calculateNeighborExchanges(T, trackIDs, startFrame, windowSize):
         frame_data_sorted = frame_data.sort_values(by="TrackID")
 
         frame_data_raw = T[T["Time"] == frame]
-        debugpy.breakpoint()
         # to compare between filtered+interpolated vs raw data,
         #   compare frame_data_sorted and T[T["Time"] == frame]
+        # First histogram
+        plt.subplot(2, 3, 1)
+        plt.hist(frame_data_sorted["velx"], bins=20, color="blue", alpha=0.7)
+        plt.xlim(np.min(frame_data_raw["velx"]), np.max(frame_data_raw["velx"]))
+        plt.title("x all")
+
+        # Second histogram
+        plt.subplot(2, 3, 4)
+        plt.hist(frame_data_raw["velx"], bins=20, color="green", alpha=0.7)
+        plt.xlim(np.min(frame_data_raw["velx"]), np.max(frame_data_raw["velx"]))
+        plt.title("x filtered")
+
+        # Third histogram
+        plt.subplot(2, 3, 2)
+        plt.hist(frame_data_sorted["vely"], bins=20, color="red", alpha=0.7)
+        plt.xlim(np.min(frame_data_raw["vely"]), np.max(frame_data_raw["vely"]))
+        plt.title("y all")
+
+        # Fourth histogram
+        plt.subplot(2, 3, 5)
+        plt.hist(frame_data_raw["vely"], bins=20, color="purple", alpha=0.7)
+        plt.xlim(np.min(frame_data_raw["vely"]), np.max(frame_data_raw["vely"]))
+        plt.title("y filtered")
+
+        # Fifth histogram
+        plt.subplot(2, 3, 3)
+        plt.hist(frame_data_sorted["velz"], bins=20, color="orange", alpha=0.7)
+        plt.xlim(np.min(frame_data_raw["velz"]), np.max(frame_data_raw["velz"]))
+        plt.title("z all")
+
+        # Sixth histogram
+        plt.subplot(2, 3, 6)
+        plt.hist(frame_data_raw["velz"], bins=20, color="pink", alpha=0.7)
+        plt.xlim(np.min(frame_data_raw["velz"]), np.max(frame_data_raw["velz"]))
+        plt.title("z filtered")
+
+        # Adjust layout and show the histograms
+        plt.tight_layout()
+
+        # label="all tracks, N = " + str(len(frame_data_raw["posx"])),
+        # label="filtered tracks, N = " + str(len(frame_data_sorted["posx"])),
+        mpl.rcParams["legend.fontsize"] = 10
+        plt.legend()
+        plt.show()
+        # in red, show all tracks
+        # in black, show filtered tracks
 
         points = frame_data_sorted[["posx", "posy", "posz"]].values
         tri = Delaunay(points)
@@ -343,7 +389,8 @@ def main():
     wt_filename1 = "/Users/AndrewTon/Downloads/MSD_wt.csv"
     wt_filename2 = "/Users/AndrewTon/Downloads/MSD_wt3.csv"
     cdh_filename = "/Users/AndrewTon/Downloads/cdh_MSD.csv"
-    files = [wt_filename1, wt_filename2, cdh_filename]
+    # files = [wt_filename1, wt_filename2, cdh_filename]
+    files = [cdh_filename]
     NE_rate = []
     time_spacing = 3  # minutes
     for filename in files:
