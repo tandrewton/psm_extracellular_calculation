@@ -180,9 +180,9 @@ def validTrackIDs(T, startFrame, windowSize):
                     validIDs.append(j[0])
 
     # plot lifetimes
-    plt.hist(lifetimes, bins=20, edgecolor="black")
-    plt.xlabel("cell track lifetime")
-    plt.ylabel("Frequency")
+    # plt.hist(lifetimes, bins=20, edgecolor="black")
+    # plt.xlabel("cell track lifetime")
+    # plt.ylabel("Frequency")
     return np.array(validIDs)
 
 
@@ -275,9 +275,15 @@ def calculateNeighborExchanges(T, trackIDs, startFrame, windowSize):
         newRows = pd.DataFrame(
             interpolateMissingTracks(T, frame_data, frame, missingTrackIDs)
         )
-        # add the new rows, then sort by trackID values in order to have a consistent
+        # add the new rows, then sort by trackID values in order to have a consistent order
         frame_data = pd.concat([frame_data, newRows], ignore_index=True)
         frame_data_sorted = frame_data.sort_values(by="TrackID")
+
+        frame_data_raw = T[T["Time"] == frame]
+        debugpy.breakpoint()
+        # to compare between filtered+interpolated vs raw data,
+        #   compare frame_data_sorted and T[T["Time"] == frame]
+
         points = frame_data_sorted[["posx", "posy", "posz"]].values
         tri = Delaunay(points)
         """
@@ -338,9 +344,7 @@ def main():
     wt_filename2 = "/Users/AndrewTon/Downloads/MSD_wt3.csv"
     cdh_filename = "/Users/AndrewTon/Downloads/cdh_MSD.csv"
     files = [wt_filename1, wt_filename2, cdh_filename]
-
     NE_rate = []
-
     time_spacing = 3  # minutes
     for filename in files:
         print("current file is: ", filename)
@@ -367,11 +371,6 @@ def main():
                 sample_data, persistingTrackIDs, 1, halfMovieDuration
             )
 
-            # print("exchange per frame:", neighborExchangePerFrame)
-            # print(
-            #    "exchange per cell per minute: ",
-            #    neighborExchangePerFrame / len(persistingTrackIDs) / time_spacing,
-            # )
             neighborExchangePerFrame = (
                 neighborExchangePerFrame / len(persistingTrackIDs) / time_spacing
             )
@@ -383,10 +382,29 @@ def main():
             )
             NE_rate.append(np.mean(neighborExchangePerFrame))
 
-            # msd = calculate_msd(sample_data, sample_data["TrackID"].unique())
-            # plt.plot(np.arange(len(msd)) * time_spacing, msd, linewidth=2)
-            # plt.xlabel("Time (min)")
-            # plt.ylabel("MSD/a0")
+            """
+            plt.figure()
+            msd = calculate_msd(sample_data, sample_data["TrackID"].unique())
+            plt.plot(
+                np.arange(len(msd)) * time_spacing,
+                msd,
+                linewidth=2,
+                color="r",
+                label="all tracks, N = " + str(len(sample_data["TrackID"].unique())),
+            )
+            msd_filtered = calculate_msd(sample_data, persistingTrackIDs)
+            plt.plot(
+                np.arange(len(msd_filtered)) * time_spacing,
+                msd_filtered,
+                linewidth=2,
+                color="k",
+                label="filtered tracks, N = " + str(len(persistingTrackIDs)),
+            )
+            plt.xlabel("Time (min)")
+            plt.ylabel("MSD/a0")
+            plt.title(unique_samples[sample_num])
+            plt.legend()
+            """
 
         # plot_power_law_fits(msd, time_spacing)
         # plt.xscale("log")
