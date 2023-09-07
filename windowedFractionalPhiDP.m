@@ -3,11 +3,18 @@ close all; clear;
 set(0,'DefaultFigureWindowStyle','docked')
 fontsize(gcf,28,"points")
 %folder = "DP_simulation_frames/";
-folder = "/Users/AndrewTon/Documents/YalePhD/projects/dpm/output/cells/psm/";
+if ismac
+    folder = "/Users/AndrewTon/Documents/YalePhD/projects/dpm/output/cells/psm/";
+elseif ispc
+    folder = "C:/Users/atata/projects/dpm/output/cells/psm/";
+else
+    disp('Platform not supported')
+end
+
 rng(1)
 k_ecm = "0.005";
 k_off = "1.0";
-v0_arr = ["0.01" "0.02" "0.04" "0.08" "0.16"];
+v0_arr = ["0.02" "0.04" "0.08"];
 att = "0.001";
 
 cellDiam = 50; % in pixels
