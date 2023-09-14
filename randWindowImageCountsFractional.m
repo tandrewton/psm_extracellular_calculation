@@ -33,16 +33,7 @@ end
             pct=[pct, sum(relim, 'all')/sideLen^2];
             n=[n, 1];
         elseif sum(relpsm, "all")/(sideLen^2)>=cutoff % box of interest partially within tissue mask
-            [row, col]=find(relpsm);
-            row=row+r-1;
-            col=col+c-1; 
-            % row, col are now the indices of image that are both within the box and within the tissue mask
-            %ind=sub2ind(size(image), row, col);
             relpix = relim(relpsm);
-            % can speed this up by not using sub2ind
-            % instead, use relpix = relim(relpsm)
-            % and pct, sum(relpix)/length(relpix)
-            %pct=[pct, sum(image(ind))/length(ind)];
             pct=[pct, sum(relpix)/length(relpix)];
             % pct[end] is now the total # of white pixels (within overlap region)
             % divided by the total # pixels (within overlap region)
