@@ -15,6 +15,7 @@ k_ecm_arr = ["0.05" "0.5"];
 k_off = "1.0";
 v0_arr = ["0.02"];
 att_arr = ["0.001" "0.01" "0.1"];
+numSeeds = 10;
 
 cellDiam = 50; % in pixels
 windowLengthPixels = round(2*cellDiam);
@@ -28,17 +29,17 @@ for v0_ind=1:length(v0_arr)
     v0 = v0_arr(v0_ind);
     for att=att_arr
         for k_ecm=k_ecm_arr
-            for ss=windowLengthPixels
+            for seed=1:numSeeds
                 windowPackingFractions = [];
                 windowN = [];
                 randWindowPackingFractions = [];
                 randWindowN = [];
-                firstFrame = 10; % make sure to adjust these as necessary
+                firstFrame = 10; % make sure to adjust these as necewindowLengthPixelsary
                 lastFrame = 24;
                 for ff=firstFrame:lastFrame
                     %filename = "psmtest/psmpsmtest8_seed1fr"+ff;
                     filename = "psm_calA01.0_phi0.74_tm10.0_v0"+v0+"_t_abp1.0k_ecm"+k_ecm+"k_off"+k_off+"/"...
-                        + "psm_N40_dur1000_att"+att+"_sd1fr"+ff;
+                        + "psm_N40_dur250_att"+att+"_sd"+string(seed)+"fr"+ff;
                     raw_file = filename+".tif";
                     bd_file = filename+"_bd.tif";
                     I_color = imread(folder+raw_file);
@@ -54,11 +55,11 @@ for v0_ind=1:length(v0_arr)
                     % find indices of largest area blob in psm_mask
                     psm_mask = bwareafilt(psm_mask,1);
                 
-            %         [pct, n] = windowImageCountsFractional(I, ss, psm_mask);
+            %         [pct, n] = windowImageCountsFractional(I, windowLengthPixels, psm_mask);
             %         windowPackingFractions = [windowPackingFractions (1-pct)];
             %         windowN = [windowN n];
                     
-                    [pct, n] = randWindowImageCountsFractional(I, ss, psm_mask, 1000);
+                    [pct, n] = randWindowImageCountsFractional(I, windowLengthPixels, psm_mask, 1000);
                     randWindowPackingFractions = [randWindowPackingFractions (1-pct)];
                     randWindowN = [randWindowN n];
                 end
