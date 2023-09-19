@@ -29,13 +29,14 @@ for v0_ind=1:length(v0_arr)
     v0 = v0_arr(v0_ind);
     for att=att_arr
         for k_ecm=k_ecm_arr
+            windowPackingFractions = [];
+            windowN = [];
+            randWindowPackingFractions = [];
+            randWindowN = [];
             for seed=1:numSeeds
-                windowPackingFractions = [];
-                windowN = [];
-                randWindowPackingFractions = [];
-                randWindowN = [];
                 firstFrame = 10; % make sure to adjust these as necewindowLengthPixelsary
                 lastFrame = 24;
+                packingFractionPerSeed = [];
                 for ff=firstFrame:lastFrame
                     %filename = "psmtest/psmpsmtest8_seed1fr"+ff;
                     filename = "psm_calA01.0_phi0.74_tm10.0_v0"+v0+"_t_abp1.0k_ecm"+k_ecm+"k_off"+k_off+"/"...
@@ -58,41 +59,60 @@ for v0_ind=1:length(v0_arr)
             %         [pct, n] = windowImageCountsFractional(I, windowLengthPixels, psm_mask);
             %         windowPackingFractions = [windowPackingFractions (1-pct)];
             %         windowN = [windowN n];
-                    
-                    [pct, n] = randWindowImageCountsFractional(I, windowLengthPixels, psm_mask, 1000);
+                    % pct = fraction of positive pixels in window
+                    % n = measured window size as a fraction of max size
+                    [pct, n] = randWindowImageCountsFractional(I, windowLengthPixels, psm_mask, 50);
                     randWindowPackingFractions = [randWindowPackingFractions (1-pct)];
+                    packingFractionPerSeed = [packingFractionPerSeed (1-pct)];
                     randWindowN = [randWindowN n];
                 end
-                binedges = 0:0.02:1;
-            
-            %     % transform to weighted bin counts
-            %     [b,~] = discretize(windowPackingFractions, binedges);
-            %     c = accumarray(b', windowN');
-            %     windowBinCounts=[c;zeros(numel(binedges)-1-numel(c),1)];
-            
-                [b,~] = discretize(randWindowPackingFractions, binedges); % get bincounts a for each bin, hist inds b for each element
-                c = accumarray(b', randWindowN'); % into inds b, accumulate weights N
-                randWindowBinCounts = [c;zeros(numel(binedges)-1-numel(c),1)]; % zero pad to right size
-            
-                figure(3+v0_ind);
-                nexttile; hold on;
-            
-                %histogram('binedges', binedges, 'bincounts', windowBinCounts','normalization', 'pdf');
-                histogram('binedges', binedges, 'bincounts', randWindowBinCounts','normalization', 'pdf');
-                text(0.4, 12, "a="+att+", k_{e}="+k_ecm)
-                    
-                %histogram(windowPackingFractions, binedges, 'normalization', 'pdf')
-                %histogram(randWindowPackingFractions, binedges, 'normalization', 'pdf')
-                xlim([0 1])
-                xticks([0, 0.4, 0.8, 1])
-                %xlabel("\phi")
-                %ylabel("P(\phi)")
-                set(gca,"Fontsize", 10)
-                axis square
-                %title(string(windowLengthPixels/cellDiam))
+                % write (seed, randWindowN', v0, att, k_ecm) to file
+
+                % to speed up the writing process, I could move this out of
+                % the seed loop, write randWindowN' instead of
+                % packingFractionPerSeed', and then use rowSeed instead of repmat(seed, rowDim)
+                % where rowSeed = []; rowSeed.append(repmat(seed,
+                % packingFractionPerSeed')) for each seed
+                rowDim = size(packingFractionPerSeed');
+                A = table(packingFractionPerSeed', repmat(att, rowDim), ...  
+                    repmat(v0, rowDim), repmat(k_ecm, rowDim), ...
+                    repmat(seed, rowDim));
+    
+                A.Properties.VariableNames = ["phi", "att", "v0", "k_ecm", "seed"];
+                writetable(A, 'windowedPhiDataFrame.txt', 'WriteMode', 'append');
+                
             end
+
+            binedges = 0:0.02:1;
+        
+        %     % transform to weighted bin counts
+        %     [b,~] = discretize(windowPackingFractions, binedges);
+        %     c = accumarray(b', windowN');
+        %     windowBinCounts=[c;zeros(numel(binedges)-1-numel(c),1)];
+        
+            [b,~] = discretize(randWindowPackingFractions, binedges); % get bincounts a for each bin, hist inds b for each element
+            c = accumarray(b', randWindowN'); % into inds b, accumulate weights N
+            randWindowBinCounts = [c;zeros(numel(binedges)-1-numel(c),1)]; % zero pad to right size
+        
+            figure(3+v0_ind);
+            nexttile; hold on;
+        
+            %histogram('binedges', binedges, 'bincounts', windowBinCounts','normalization', 'pdf');
+            histogram('binedges', binedges, 'bincounts', randWindowBinCounts','normalization', 'pdf');
+            text(0.4, 12, "a="+att+", k_{e}="+k_ecm)
+                
+            %histogram(windowPackingFractions, binedges, 'normalization', 'pdf')
+            %histogram(randWindowPackingFractions, binedges, 'normalization', 'pdf')
+            xlim([0 1])
+            xticks([0, 0.4, 0.8, 1])
+            %xlabel("\phi")
+            %ylabel("P(\phi)")
+            set(gca,"Fontsize", 10)
+            axis square
+            %title(string(windowLengthPixels/cellDiam))
         end
     end
     figure(3+v0_ind); linkaxes
     ylim([0 18.0])
 end
+
