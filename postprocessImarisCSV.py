@@ -240,7 +240,6 @@ def interpolateMissingTracks(T, frame_data, frameNum, missingTrackIDs):
         column_averages = {}
         for column in rowsToInterpolate.columns:
             unique_values = rowsToInterpolate[column].unique()
-
             # Check if the column has more than one unique value
             if len(unique_values) > 1:
                 # Calculate the average of the column
@@ -248,6 +247,7 @@ def interpolateMissingTracks(T, frame_data, frameNum, missingTrackIDs):
                 column_averages[column] = average
             else:
                 # If only one unique value, store it directly
+                print(column)
                 column_averages[column] = unique_values[0]
         newRows.append(column_averages)
     return newRows
@@ -281,6 +281,7 @@ def calculateNeighborExchanges(T, trackIDs, startFrame, windowSize):
         frame_data_sorted = frame_data.sort_values(by="TrackID")
 
         frame_data_raw = T[T["Time"] == frame]
+        """
         # to compare between filtered+interpolated vs raw data,
         #   compare frame_data_sorted and T[T["Time"] == frame]
         # First histogram
@@ -321,6 +322,7 @@ def calculateNeighborExchanges(T, trackIDs, startFrame, windowSize):
 
         # Adjust layout and show the histograms
         plt.tight_layout()
+        
 
         # label="all tracks, N = " + str(len(frame_data_raw["posx"])),
         # label="filtered tracks, N = " + str(len(frame_data_sorted["posx"])),
@@ -329,6 +331,7 @@ def calculateNeighborExchanges(T, trackIDs, startFrame, windowSize):
         plt.show()
         # in red, show all tracks
         # in black, show filtered tracks
+        """
 
         points = frame_data_sorted[["posx", "posy", "posz"]].values
         tri = Delaunay(points)
@@ -386,16 +389,25 @@ def calculateNeighborExchanges(T, trackIDs, startFrame, windowSize):
 
 
 def main():
-    wt_filename1 = "/Users/AndrewTon/Downloads/MSD_wt.csv"
-    wt_filename2 = "/Users/AndrewTon/Downloads/MSD_wt3.csv"
-    cdh_filename = "/Users/AndrewTon/Downloads/cdh_MSD.csv"
-    # files = [wt_filename1, wt_filename2, cdh_filename]
-    files = [cdh_filename]
+    folder = "/Users/AndrewTon/Documents/YalePhD/projects/ZebrafishSegmentation/psm_extracellular_calculation/"
+    wt_filename1 = folder + "MSD_wt.csv"
+    wt_filename2 = folder + "MSD_wt3.csv"
+    cdh_filename = folder + "cdh_MSD.csv"
+    itg_cdh_filename = folder + "itgcdh_230831.csv"
+    # files = [cdh_filename]
+    files = [wt_filename1, wt_filename2, cdh_filename, itg_cdh_filename]
     NE_rate = []
-    time_spacing = 3  # minutes
+    nSkip = 1  # skip every nSkip frames, i.e. keep Time=1, Time=1+n, Time=1+2n
+    time_spacing = 3 * (nSkip + 1)  # minutes
     for filename in files:
         print("current file is: ", filename)
         T = pd.read_csv(filename)
+        # filter dataset to subsample time
+        T = T[T.Time % (nSkip + 1) == 0]
+        for unique_time in range(T["Time"].nunique()):
+            T.loc[T["Time"] == unique_time, "Time"] -= 1
+        if "sample" not in T:
+            T["sample"] = "itg_cdh_1"
 
         # Set plot settings
         plt.rcParams["figure.figsize"] = (10, 6)
@@ -459,8 +471,8 @@ def main():
 
     debugpy.breakpoint()
 
-    plt.figure()
-    NE_dict = {"WT": NE_rate[0:3], "cdh": NE_rate[3:6]}
+    plt.figure(figsize=(10, 8))
+    NE_dict = {"WT": NE_rate[0:3], "cdh": NE_rate[3:6], "itg_cdh": NE_rate[6:7]}
     x_ticks = []
     Y = []
     for key, values in NE_dict.items():
@@ -469,9 +481,10 @@ def main():
     X = np.array(x_ticks)
     X[X == "WT"] = 0
     X[X == "cdh"] = 1
+    X[X == "itg_cdh"] = 2
     plt.scatter(X, NE_rate, s=150)
     plt.xticks(X, x_ticks)
-    plt.xlim([-1, 2])
+    plt.xlim([-1, 3])
     plt.ylabel(r"NE rate (min$^{-1}$)")
 
     print("closing program")
