@@ -228,7 +228,7 @@ def collect_edges(tri):
     return edges
 
 
-def interpolateMissingTracks(T, frame_data, frameNum, missingTrackIDs):
+def interpolateMissingTracks(T, frameNum, missingTrackIDs):
     newRows = []
     for id in missingTrackIDs:
         # if one of frameNum-1 or frameNum+1 does not exist, it should just default to the existing one, which is interpolation when both exist, and copying if only one exists
@@ -240,15 +240,22 @@ def interpolateMissingTracks(T, frame_data, frameNum, missingTrackIDs):
         column_averages = {}
         for column in rowsToInterpolate.columns:
             unique_values = rowsToInterpolate[column].unique()
+            # print(rowsToInterpolate[column])
             # Check if the column has more than one unique value
             if len(unique_values) > 1:
                 # Calculate the average of the column
                 average = np.mean(unique_values)
                 column_averages[column] = average
-            else:
+            elif len(unique_values) == 1:
                 # If only one unique value, store it directly
-                print(column)
                 column_averages[column] = unique_values[0]
+
+            """for i in unique_values:
+                if i != i and column != "...10":
+                    print(
+                        f"detected nan with id {id}, frameNum {frameNum}, column {column}"
+                    )
+            """
         newRows.append(column_averages)
     return newRows
 
@@ -273,13 +280,10 @@ def calculateNeighborExchanges(T, trackIDs, startFrame, windowSize):
         # calculate which trackIDs are not in frame_data
         missingTrackIDs = set(filtered_data["TrackID"]) - set(frame_data["TrackID"])
         #  use interpolation to generate a row for each of those missing trackIDs in this frame
-        newRows = pd.DataFrame(
-            interpolateMissingTracks(T, frame_data, frame, missingTrackIDs)
-        )
+        newRows = pd.DataFrame(interpolateMissingTracks(T, frame, missingTrackIDs))
         # add the new rows, then sort by trackID values in order to have a consistent order
         frame_data = pd.concat([frame_data, newRows], ignore_index=True)
         frame_data_sorted = frame_data.sort_values(by="TrackID")
-
         frame_data_raw = T[T["Time"] == frame]
         """
         # to compare between filtered+interpolated vs raw data,
@@ -334,6 +338,7 @@ def calculateNeighborExchanges(T, trackIDs, startFrame, windowSize):
         """
 
         points = frame_data_sorted[["posx", "posy", "posz"]].values
+        nanRowInds = frame_data_sorted.loc[frame_data_sorted["posx"].isna()].index
         tri = Delaunay(points)
         """
         fig = plt.figure()
@@ -397,15 +402,21 @@ def main():
     # files = [cdh_filename]
     files = [wt_filename1, wt_filename2, cdh_filename, itg_cdh_filename]
     NE_rate = []
-    nSkip = 1  # skip every nSkip frames, i.e. keep Time=1, Time=1+n, Time=1+2n
+    nSkip = 0  # skip every nSkip frames, i.e. keep Time=1, Time=1+n, Time=1+2n
     time_spacing = 3 * (nSkip + 1)  # minutes
     for filename in files:
         print("current file is: ", filename)
         T = pd.read_csv(filename)
         # filter dataset to subsample time
-        T = T[T.Time % (nSkip + 1) == 0]
-        for unique_time in range(T["Time"].nunique()):
-            T.loc[T["Time"] == unique_time, "Time"] -= 1
+        firstAndSkippedFramesCondition = (T.Time % (nSkip + 1) == 0) | (T.Time == 1)
+        T = T[firstAndSkippedFramesCondition]
+
+        stack = [T["Time"].min()]
+        for unique_time in np.sort(T["Time"].unique()):
+            prevTime = stack.pop()
+            if unique_time - prevTime > 1:
+                T.loc[T["Time"] == unique_time, "Time"] = prevTime + 1
+            stack.append(prevTime + 1)
         if "sample" not in T:
             T["sample"] = "itg_cdh_1"
 
@@ -423,6 +434,7 @@ def main():
 
             # get the trackIDs of tracks that persist from frame 1 to half the movie duration
             halfMovieDuration = int(sample_data["Time"].max() / 2)
+            print(halfMovieDuration, sample_data["Time"].max())
             # halfMovieDuration = int(sample_data["Time"].max()) - 2
             persistingTrackIDs = validTrackIDs(sample_data, 1, halfMovieDuration)
 
