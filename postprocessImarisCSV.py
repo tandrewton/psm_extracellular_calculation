@@ -9,6 +9,7 @@ from mpl_toolkits.mplot3d import Axes3D
 from mpl_toolkits.mplot3d.art3d import Poly3DCollection
 from plotly.subplots import make_subplots
 from scipy.optimize import curve_fit
+import sys, os, glob
 import debugpy
 
 
@@ -394,19 +395,43 @@ def calculateNeighborExchanges(T, trackIDs, startFrame, windowSize):
 
 
 def main():
-    folder = "/Users/AndrewTon/Documents/YalePhD/projects/ZebrafishSegmentation/psm_extracellular_calculation/"
-    wt_filename1 = folder + "MSD_wt.csv"
-    wt_filename2 = folder + "MSD_wt3.csv"
-    cdh_filename = folder + "cdh_MSD.csv"
+    folder = "/Users/AndrewTon/Documents/YalePhD/projects/ZebrafishSegmentation/psm_extracellular_calculation/cellmotionproc"
+    #wt_filename1 = folder + "MSD_wt.csv"
+    #wt_filename2 = folder + "MSD_wt3.csv"
+    #cdh_filename = folder + "cdh_MSD.csv"
+    #itg_cdh_filename = folder + "itgcdh_230831.csv"
+    # should just glob all file names ending in .csv
+    '''wt_filename1 = folder + "wt_052312b .csv"
+    wt_filename2 = folder + "wt_041211b .csv"
+    wt_filename3 = folder + "wt_033111 .csv"
+    cdh_filename1 = folder + "cdh2_20231106_1 .csv"
+    cdh_filename2 = folder + "cdh2_20231106_2 .csv"
+    cdh_fn_filename1 = folder + "cdh2--fn1a--fn1b--_20231113_2 .csv"
+    itga5_filename1 = folder + "itga5_20231104_2 .csv"
+    itga5_filename2 = folder + "itga5_20231202_3 .csv"
+    fbn_filename1 = folder + "fbn2b_231011_em2 .csv"
+    MZitg_filename1 = folder + "MZitg_231030_em1 .csv"
+    MZitg_cdh_filename1 = folder + "MZitgcdh_230921 .csv"
+    MZitg_cdh_filename2 = folder + "MZitgcdh2_230831 .csv"
     itg_cdh_filename = folder + "itgcdh_230831.csv"
+    '''
+
+    # list of spreadsheets
+    files = glob.glob(os.path.join(folder, "*.csv"))
+    # list of genotypes sorted in same order as files
+    # name of file does not necessarily contain genotype info, but genotype info can be obtained from first row of spreadsheet
+    genotypes = []
+
     # files = [cdh_filename]
-    files = [wt_filename1, wt_filename2, cdh_filename, itg_cdh_filename]
+    #files = [wt_filename1, wt_filename2, wt_filename3, cdh_filename1, cdh_filename2, cdh_fn_filename1, itga5_filename1, itga5_filename2, fbn_filename1, MZitg_filename1, MZitg_cdh_filename1, MZitg_cdh_filename2, itg_cdh_filename]
     NE_rate = []
     nSkip = 0  # skip every nSkip frames, i.e. keep Time=1, Time=1+n, Time=1+2n
     time_spacing = 3 * (nSkip + 1)  # minutes
     for filename in files:
         print("current file is: ", filename)
         T = pd.read_csv(filename)
+        genotypes.append(T["genotype"][0])
+        print("current genotype is ", T["genotype"][0])
         # filter dataset to subsample time
         firstAndSkippedFramesCondition = (T.Time % (nSkip + 1) == 0) | (T.Time == 1)
         T = T[firstAndSkippedFramesCondition]
@@ -482,24 +507,17 @@ def main():
         # plt.yscale("log")
 
     debugpy.breakpoint()
+    NE_df = pd.DataFrame({'Genotype': genotypes, 'NE': NE_rate})
+    plot_ordering = ['wt', 'MZitg', 'cdh2', 'MZitgcdh', 'cdh2--fn1a--fn1b--', 'fbn2b', 'fbn2b--fn1a--fn1b--', 'fn1a--fn1b--']
+    NE_df['Genotype'] = pd.Categorical(NE_df['Genotype'], categories=plot_ordering, ordered=True)
+    NE_df = NE_df.sort_values('Genotype')
 
-    plt.figure(figsize=(10, 8))
-    NE_dict = {"WT": NE_rate[0:3], "cdh": NE_rate[3:6], "itg_cdh": NE_rate[6:7]}
-    x_ticks = []
-    Y = []
-    for key, values in NE_dict.items():
-        x_ticks.extend([key] * len(values))
-        Y.extend(values)
-    X = np.array(x_ticks)
-    X[X == "WT"] = 0
-    X[X == "cdh"] = 1
-    X[X == "itg_cdh"] = 2
-    plt.scatter(X, NE_rate, s=150)
-    plt.xticks(X, x_ticks)
-    plt.xlim([-1, 3])
-    plt.ylabel(r"NE rate (min$^{-1}$)")
-
-    print("closing program")
+    plt.figure(figsize=(12,8))
+    plt.scatter(NE_df['Genotype'], NE_df['NE'])
+    plt.xticks(rotation=45)
+    plt.xlabel('Genotype')
+    plt.ylabel('NE rate')
+    plt.tight_layout()  # Automatically adjust subplot params
     plt.show()
 
 
