@@ -2,6 +2,7 @@ import pandas as pd
 import numpy as np
 import matplotlib as mpl
 import matplotlib.pyplot as plt
+import seaborn as sns
 import plotly.express as px
 import plotly.graph_objects as go
 from scipy.spatial import Voronoi, Delaunay
@@ -260,6 +261,17 @@ def interpolateMissingTracks(T, frameNum, missingTrackIDs):
         newRows.append(column_averages)
     return newRows
 
+def calculateSpeeds(T):
+    # output: np array of speeds, each entry is the average speed of a given frame
+    speedPerFrame = []
+    frames = T["Time"].unique()
+    for frame in frames:
+        filtered_data = T[T["Time"] == frame]
+        speeds = np.mean(filtered_data["speed"])
+        #speeds = np.mean(np.sqrt(filtered_data["velx"]**2 + filtered_data["velz"]**2))
+        speedPerFrame.append(speeds)
+    return np.array(speedPerFrame)
+
 
 def calculateNeighborExchanges(T, trackIDs, startFrame, windowSize):
     # for tracks labeled by trackIDs, which are guaranteed to be born by startFrame and to die after startFrame + windowSize,
@@ -419,12 +431,13 @@ def main():
     # list of spreadsheets
     files = glob.glob(os.path.join(folder, "*.csv"))
     # list of genotypes sorted in same order as files
-    # name of file does not necessarily contain genotype info, but genotype info can be obtained from first row of spreadsheet
+    # name of file does not have correct genotype info, but genotype is correct in last csv column
     genotypes = []
 
-    # files = [cdh_filename]
-    #files = [wt_filename1, wt_filename2, wt_filename3, cdh_filename1, cdh_filename2, cdh_fn_filename1, itga5_filename1, itga5_filename2, fbn_filename1, MZitg_filename1, MZitg_cdh_filename1, MZitg_cdh_filename2, itg_cdh_filename]
     NE_rate = []
+    NE_std = []
+    cell_speeds = []
+    cell_speed_std = []
     nSkip = 0  # skip every nSkip frames, i.e. keep Time=1, Time=1+n, Time=1+2n
     time_spacing = 3 * (nSkip + 1)  # minutes
     for filename in files:
@@ -475,8 +488,18 @@ def main():
                 np.mean(neighborExchangePerFrame),
                 " +/- ",
                 np.std(neighborExchangePerFrame),
+                "number of cells : ",
+                len(persistingTrackIDs),
+                "total_time : ",
+                time_spacing*halfMovieDuration
             )
+
+            speedsPerFrame = calculateSpeeds(sample_data)
+
+            cell_speeds.append(np.nanmean(speedsPerFrame))
+            cell_speed_std.append(np.nanstd(speedsPerFrame))
             NE_rate.append(np.mean(neighborExchangePerFrame))
+            NE_std.append(np.std(neighborExchangePerFrame))
 
             """
             plt.figure()
@@ -506,17 +529,72 @@ def main():
         # plt.xscale("log")
         # plt.yscale("log")
 
-    debugpy.breakpoint()
-    NE_df = pd.DataFrame({'Genotype': genotypes, 'NE': NE_rate})
+    
+    NE_df = pd.DataFrame({'Genotype': genotypes, 'NE': NE_rate, 'NE_std': NE_std})
+    speed_df = pd.DataFrame({'Genotype': genotypes, 'speed': cell_speeds, 'speed_std': cell_speed_std})
+    combined_df = pd.concat([NE_df, speed_df["speed"]], axis=1, sort=False)
+
     plot_ordering = ['wt', 'MZitg', 'cdh2', 'MZitgcdh', 'cdh2--fn1a--fn1b--', 'fbn2b', 'fbn2b--fn1a--fn1b--', 'fn1a--fn1b--']
     NE_df['Genotype'] = pd.Categorical(NE_df['Genotype'], categories=plot_ordering, ordered=True)
     NE_df = NE_df.sort_values('Genotype')
+
+    speed_df['Genotype'] = pd.Categorical(speed_df['Genotype'], categories=plot_ordering, ordered=True)
+    speed_df = speed_df.sort_values('Genotype')
+
+    combined_df['Genotype'] = pd.Categorical(combined_df['Genotype'], categories=plot_ordering, ordered=True)
+    combined_df = combined_df.sort_values('Genotype')
 
     plt.figure(figsize=(12,8))
     plt.scatter(NE_df['Genotype'], NE_df['NE'])
     plt.xticks(rotation=45)
     plt.xlabel('Genotype')
-    plt.ylabel('NE rate')
+    plt.ylabel('NE rate (per cell per min)')
+    plt.tight_layout()  # Automatically adjust subplot params
+
+    # Convert 'Category' to a categorical type and assign numerical values
+    NE_df['GenotypeNum'] = NE_df['Genotype'].astype('category').cat.codes
+    offset_width = 0.1  # Adjust the spacing between points in the same category
+    grouped = NE_df.groupby('GenotypeNum')
+    offsets = {cat: np.linspace(-offset_width/2, offset_width/2, num=len(group)) for cat, group in grouped}
+    NE_df['Offset'] = NE_df.apply(lambda row: offsets[row['GenotypeNum']][grouped.groups[row['GenotypeNum']].get_loc(row.name)], axis=1)
+
+    plt.figure(figsize=(12,8))
+    plt.errorbar(NE_df['GenotypeNum']+NE_df['Offset'], NE_df['NE'], yerr=NE_df['NE_std'], fmt='o', capsize=5)
+    # Set the x-ticks and their labels to the original string values
+    plt.xticks(range(len(NE_df['Genotype'].unique())), NE_df['Genotype'].unique())
+    plt.xticks(rotation=45)
+    plt.xlabel('Genotype')
+    plt.ylabel(r"NE rate (per cell per min)")
+    plt.tight_layout()  # Automatically adjust subplot params
+
+    plt.figure(figsize=(12,8))
+    plt.scatter(speed_df['Genotype'], speed_df['speed'])
+    plt.xticks(rotation=45)
+    plt.xlabel('Genotype')
+    plt.ylabel(r"Speed $(\mu m/min)$")
+    plt.tight_layout()  # Automatically adjust subplot params
+
+    # Convert 'Category' to a categorical type and assign numerical values
+    speed_df['GenotypeNum'] = speed_df['Genotype'].astype('category').cat.codes
+    offset_width = 0.1  # Adjust the spacing between points in the same category
+    grouped = speed_df.groupby('GenotypeNum')
+    offsets = {cat: np.linspace(-offset_width/2, offset_width/2, num=len(group)) for cat, group in grouped}
+    speed_df['Offset'] = speed_df.apply(lambda row: offsets[row['GenotypeNum']][grouped.groups[row['GenotypeNum']].get_loc(row.name)], axis=1)
+
+    plt.figure(figsize=(12,8))
+    plt.errorbar(speed_df['GenotypeNum']+speed_df['Offset'], speed_df['speed'], yerr=speed_df['speed_std'], fmt='o', capsize=5)
+    # Set the x-ticks and their labels to the original string values
+    plt.xticks(range(len(speed_df['Genotype'].unique())), speed_df['Genotype'].unique())
+    plt.xticks(rotation=45)
+    plt.xlabel('Genotype')
+    plt.ylabel(r"Speed $(\mu m/min)$")
+    plt.tight_layout()  # Automatically adjust subplot params
+
+    plt.figure(figsize=(12,8))
+    sns.scatterplot(data=combined_df, x="speed", y="NE", hue="Genotype")
+    plt.legend(bbox_to_anchor=(1.05, 1), loc='upper left', borderaxespad=0)
+    plt.xlabel(r"Speed $(\mu m/min)$")
+    plt.ylabel(r"NE rate (per cell per min)")
     plt.tight_layout()  # Automatically adjust subplot params
     plt.show()
 
