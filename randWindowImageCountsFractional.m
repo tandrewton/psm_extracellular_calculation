@@ -24,6 +24,15 @@ end
         c=randi([1, size(image,2)- sideLen]);
         assert(r+gap < size(image,1));
         assert(c+gap < size(image,2));
+        % rare edge cases where image, psm have different sizes. can either
+        % ignore this frame or try to shift the window a bit, choosing to
+        % shift for now.
+        if (r+gap > size(psm,1))
+            r = r - abs(size(image,1) - size(psm,1));
+        end
+        if (c+gap > size(psm,2))
+            c = c - abs(size(image,2) - size(psm,2));
+        end
 
         % relpsm is the section of psm (mask) according to the window with
         % origin at (r,c)
