@@ -261,7 +261,7 @@ def interpolateMissingTracks(T, frameNum, missingTrackIDs):
         newRows.append(column_averages)
     return newRows
 
-def calculateSpeeds(T):
+def calculateSpeedsPerFrame(T):
     # output: np array of speeds, each entry is the average speed of a given frame
     speedPerFrame = []
     frames = T["Time"].unique()
@@ -271,6 +271,16 @@ def calculateSpeeds(T):
         #speeds = np.mean(np.sqrt(filtered_data["velx"]**2 + filtered_data["velz"]**2))
         speedPerFrame.append(speeds)
     return np.array(speedPerFrame)
+
+def calculateSpeedsPerEmbryo(T):
+    # output: np array of speeds, each entry is the average speed of a given frame
+    speedPerEmbryo = np.array([])
+    frames = T["Time"].unique()
+    for frame in frames:
+        filtered_data = T[T["Time"] == frame]
+        #speeds = np.mean(np.sqrt(filtered_data["velx"]**2 + filtered_data["velz"]**2))
+        speedPerEmbryo = np.concatenate((speedPerEmbryo, filtered_data["speed"].to_numpy()))
+    return np.array(speedPerEmbryo)
 
 
 def calculateNeighborExchanges(T, trackIDs, startFrame, windowSize):
@@ -282,7 +292,7 @@ def calculateNeighborExchanges(T, trackIDs, startFrame, windowSize):
     globalZLim = min(filtered_data["posz"]), max(filtered_data["posz"])
     # plot_3d_movie(filtered_data)
 
-    DelaunayEdgeDistanceThreshold = 12  # microns
+    DelaunayEdgeDistanceThreshold = 10  # microns
     distances = []
     numberNearestNeighbors = []
     filteredNeighborsPerFrame = []
@@ -443,6 +453,10 @@ def main():
     for filename in files:
         print("current file is: ", filename)
         T = pd.read_csv(filename)
+
+        #if (T["genotype"][0] == "wt_PZ"):
+        #    continue
+
         genotypes.append(T["genotype"][0])
         print("current genotype is ", T["genotype"][0])
         # filter dataset to subsample time
@@ -494,12 +508,14 @@ def main():
                 time_spacing*halfMovieDuration
             )
 
-            speedsPerFrame = calculateSpeeds(sample_data)
 
-            cell_speeds.append(np.nanmean(speedsPerFrame))
-            cell_speed_std.append(np.nanstd(speedsPerFrame))
             NE_rate.append(np.mean(neighborExchangePerFrame))
             NE_std.append(np.std(neighborExchangePerFrame))
+            
+            speedsPerEmbryo = calculateSpeedsPerEmbryo(sample_data)
+            cell_speeds.append(np.nanmean(speedsPerEmbryo))
+            cell_speed_std.append(np.nanstd(speedsPerEmbryo))
+
 
             """
             plt.figure()
@@ -534,7 +550,9 @@ def main():
     speed_df = pd.DataFrame({'Genotype': genotypes, 'speed': cell_speeds, 'speed_std': cell_speed_std})
     combined_df = pd.concat([NE_df, speed_df["speed"]], axis=1, sort=False)
 
-    plot_ordering = ['wt', 'MZitg', 'cdh2', 'MZitgcdh', 'cdh2--fn1a--fn1b--', 'fbn2b', 'fbn2b--fn1a--fn1b--', 'fn1a--fn1b--']
+    debugpy.breakpoint()
+
+    plot_ordering = ['wt', 'MZitg', 'cdh2', 'MZitgcdh', 'cdh2--fbn2b--', 'cdh2--fn1a--fn1b--', 'cdh2MO-fn1a--fn1b--fbn2b--', 'fbn2b', 'fbn2b--fn1a--fn1b--', 'fn1a--fn1b--', 'wt_PZ']
     NE_df['Genotype'] = pd.Categorical(NE_df['Genotype'], categories=plot_ordering, ordered=True)
     NE_df = NE_df.sort_values('Genotype')
 
