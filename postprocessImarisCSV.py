@@ -418,30 +418,13 @@ def calculateNeighborExchanges(T, trackIDs, startFrame, windowSize):
 
 def main():
     folder = "/Users/AndrewTon/Documents/YalePhD/projects/ZebrafishSegmentation/psm_extracellular_calculation/cellmotionproc"
-    #wt_filename1 = folder + "MSD_wt.csv"
-    #wt_filename2 = folder + "MSD_wt3.csv"
-    #cdh_filename = folder + "cdh_MSD.csv"
-    #itg_cdh_filename = folder + "itgcdh_230831.csv"
-    # should just glob all file names ending in .csv
-    '''wt_filename1 = folder + "wt_052312b .csv"
-    wt_filename2 = folder + "wt_041211b .csv"
-    wt_filename3 = folder + "wt_033111 .csv"
-    cdh_filename1 = folder + "cdh2_20231106_1 .csv"
-    cdh_filename2 = folder + "cdh2_20231106_2 .csv"
-    cdh_fn_filename1 = folder + "cdh2--fn1a--fn1b--_20231113_2 .csv"
-    itga5_filename1 = folder + "itga5_20231104_2 .csv"
-    itga5_filename2 = folder + "itga5_20231202_3 .csv"
-    fbn_filename1 = folder + "fbn2b_231011_em2 .csv"
-    MZitg_filename1 = folder + "MZitg_231030_em1 .csv"
-    MZitg_cdh_filename1 = folder + "MZitgcdh_230921 .csv"
-    MZitg_cdh_filename2 = folder + "MZitgcdh2_230831 .csv"
-    itg_cdh_filename = folder + "itgcdh_230831.csv"
-    '''
+    masterSpreadsheetsFolder = "/Users/AndrewTon/Documents/YalePhD/projects/ZebrafishSegmentation/psm_extracellular_calculation/masterspreadsheets_packingfrac_cellshape"
 
     # list of spreadsheets
     files = glob.glob(os.path.join(folder, "*.csv"))
     # list of genotypes sorted in same order as files
     # name of file does not have correct genotype info, but genotype is correct in last csv column
+
     genotypes = []
 
     NE_rate = []
@@ -494,9 +477,12 @@ def main():
                 sample_data, persistingTrackIDs, 1, halfMovieDuration
             )
 
+            print(neighborExchangePerFrame)
+
             neighborExchangePerFrame = (
                 neighborExchangePerFrame / len(persistingTrackIDs) / time_spacing
             )
+
             print(
                 "exchange per cell per minute : ",
                 np.mean(neighborExchangePerFrame),
@@ -545,26 +531,52 @@ def main():
         # plt.xscale("log")
         # plt.yscale("log")
 
+    # exchange genotype names for shorter names for plotting simplicity
+    genotype_replacements = {
+        'MZitg': r'itg$\alpha$5',
+        'itga5--': r'itg$\alpha$5',
+        'MZitgcdh': r'cdh2, itg$\alpha$5',
+        'itga5--cdh2--': r'cdh2, itg$\alpha$5',
+        'cdh2--fbn2b--': 'cdh2, Fbn2b',
+        'cdh2--fn1a--fn1b--': 'cdh2, Fn1a;1b',
+        'fn1a--fn1b--cdh2--': 'cdh2, Fn1a;1b',
+        'cdh2MO-fn1a--fn1b--fbn2b--': 'cdh2, Fn1a;1b, Fbn2b', 
+        'cdh2MOfbn2b--fn1a--fn1b--': 'cdh2, Fn1a;1b, Fbn2b', 
+        'fbn2b': 'Fbn2b', 
+        'fbn2b--': 'Fbn2b',
+        #'fbn2b--fn1a--fn1b--': 'Fn1a;1b, Fbn2b', 
+        #'fbn2b--_fn1a--_fn1b--': 'Fn1a;1b, Fbn2b', 
+        'fn1a--fn1b--': 'Fn1a;1b'
+    }
+
+    # Function to filter genotypes based on the replacements dictionary
+    def filter_genotype(genotype):
+        return genotype_replacements.get(genotype, genotype)
+
+    # Apply the filter function to each genotype in the list
+    genotypes = [filter_genotype(genotype) for genotype in genotypes]
     
     NE_df = pd.DataFrame({'Genotype': genotypes, 'NE': NE_rate, 'NE_std': NE_std})
     speed_df = pd.DataFrame({'Genotype': genotypes, 'speed': cell_speeds, 'speed_std': cell_speed_std})
     combined_df = pd.concat([NE_df, speed_df["speed"]], axis=1, sort=False)
 
-    debugpy.breakpoint()
-
-    plot_ordering = ['wt', 'MZitg', 'cdh2', 'MZitgcdh', 'cdh2--fbn2b--', 'cdh2--fn1a--fn1b--', 'cdh2MO-fn1a--fn1b--fbn2b--', 'fbn2b', 'fbn2b--fn1a--fn1b--', 'fn1a--fn1b--', 'wt_PZ']
+    #plot_ordering = ['wt', 'MZitg', 'cdh2', 'MZitgcdh', 'cdh2--fbn2b--', 'cdh2--fn1a--fn1b--', 'cdh2MO-fn1a--fn1b--fbn2b--', 'fbn2b', 'fbn2b--fn1a--fn1b--', 'fn1a--fn1b--', 'wt_PZ']
+    plot_ordering = ['wt', 'cdh2', r'itg$\alpha$5', 'Fn1a;1b', 'Fbn2b', r'cdh2, itg$\alpha$5', 'cdh2, Fn1a;1b', 'cdh2, Fn1a;1b, Fbn2b', 'cdh2, Fbn2b',  'Fn1a;1b, Fbn2b', 'wt_PZ']
     NE_df['Genotype'] = pd.Categorical(NE_df['Genotype'], categories=plot_ordering, ordered=True)
     NE_df = NE_df.sort_values('Genotype')
+    NE_df = NE_df.dropna()
 
     speed_df['Genotype'] = pd.Categorical(speed_df['Genotype'], categories=plot_ordering, ordered=True)
     speed_df = speed_df.sort_values('Genotype')
+    speed_df = speed_df.dropna()
 
     combined_df['Genotype'] = pd.Categorical(combined_df['Genotype'], categories=plot_ordering, ordered=True)
     combined_df = combined_df.sort_values('Genotype')
+    combined_df = combined_df.dropna()
 
     plt.figure(figsize=(12,8))
     plt.scatter(NE_df['Genotype'], NE_df['NE'])
-    plt.xticks(rotation=45)
+    plt.xticks(rotation=75)
     plt.xlabel('Genotype')
     plt.ylabel('NE rate (per cell per min)')
     plt.tight_layout()  # Automatically adjust subplot params
@@ -580,14 +592,14 @@ def main():
     plt.errorbar(NE_df['GenotypeNum']+NE_df['Offset'], NE_df['NE'], yerr=NE_df['NE_std'], fmt='o', capsize=5)
     # Set the x-ticks and their labels to the original string values
     plt.xticks(range(len(NE_df['Genotype'].unique())), NE_df['Genotype'].unique())
-    plt.xticks(rotation=45)
+    plt.xticks(rotation=75)
     plt.xlabel('Genotype')
     plt.ylabel(r"NE rate (per cell per min)")
     plt.tight_layout()  # Automatically adjust subplot params
 
     plt.figure(figsize=(12,8))
     plt.scatter(speed_df['Genotype'], speed_df['speed'])
-    plt.xticks(rotation=45)
+    plt.xticks(rotation=75)
     plt.xlabel('Genotype')
     plt.ylabel(r"Speed $(\mu m/min)$")
     plt.tight_layout()  # Automatically adjust subplot params
@@ -603,7 +615,7 @@ def main():
     plt.errorbar(speed_df['GenotypeNum']+speed_df['Offset'], speed_df['speed'], yerr=speed_df['speed_std'], fmt='o', capsize=5)
     # Set the x-ticks and their labels to the original string values
     plt.xticks(range(len(speed_df['Genotype'].unique())), speed_df['Genotype'].unique())
-    plt.xticks(rotation=45)
+    plt.xticks(rotation=75)
     plt.xlabel('Genotype')
     plt.ylabel(r"Speed $(\mu m/min)$")
     plt.tight_layout()  # Automatically adjust subplot params
@@ -614,8 +626,36 @@ def main():
     plt.xlabel(r"Speed $(\mu m/min)$")
     plt.ylabel(r"NE rate (per cell per min)")
     plt.tight_layout()  # Automatically adjust subplot params
+
+    packingFractionCSV = pd.read_csv(masterSpreadsheetsFolder + "/packingfrac_transverse_summary.csv")
+    phi_genotypes = [filter_genotype(genotype) for genotype in packingFractionCSV["genotype"]]
+    phi_df = pd.DataFrame({'Genotype': phi_genotypes, 'mean': packingFractionCSV["mean"]})
+    phi_df['Genotype'] = pd.Categorical(phi_df['Genotype'], categories=plot_ordering, ordered=True)
+    phi_df = phi_df.sort_values('Genotype')
+    phi_df = phi_df.dropna()
+    plt.figure(figsize=(12,8))
+    plt.scatter(phi_df["Genotype"], phi_df["mean"])
+    plt.xticks(rotation=75)
+    plt.xlabel('Genotype')
+    plt.ylabel(r"$\phi$")
+    plt.tight_layout()  # Automatically adjust subplot params
+
+    shapeCSV = pd.read_csv(masterSpreadsheetsFolder + "/cellprops_summary_transverse.csv")
+    shape_genotypes = [filter_genotype(genotype) for genotype in shapeCSV["genotype"]]
+    shape_df = pd.DataFrame({'Genotype': shape_genotypes, 'mean': shapeCSV["Circularity_mean"]})
+    shape_df['Genotype'] = pd.Categorical(shape_df['Genotype'], categories=plot_ordering, ordered=True)
+    shape_df = shape_df.sort_values('Genotype')
+    shape_df = shape_df.dropna()
+    plt.figure(figsize=(12,8))
+    plt.scatter(shape_df["Genotype"], 1/shape_df["mean"])
+    plt.xticks(rotation=75)
+    plt.xlabel('Genotype')
+    plt.ylabel(r"$\mathcal{A}$")
+    plt.tight_layout()  # Automatically adjust subplot params
+
     plt.show()
 
+    debugpy.breakpoint()
 
 if __name__ == "__main__":
     main()
