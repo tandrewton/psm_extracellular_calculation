@@ -1,6 +1,5 @@
-%% for DP simulations
+ %% for DP simulations
 close all; clear; 
-%folder = "DP_simulation_frames/";
 if ismac
     set(0,'DefaultFigureWindowStyle','docked')
     folder = "/Users/AndrewTon/Documents/YalePhD/projects/dpm/output/cells/psm/";
@@ -9,7 +8,7 @@ elseif ispc
     folder = "C:/Users/atata/projects/dpm/output/cells/psm/";
 else
     % for cluster runs
-    folder = "/gpfs/gibbs/pi/ohern/at965/dpm/"+runType+"/output/";
+    folder = "/gpfs/gibbs/pi/ohern/at965/dpm/psm/output/";
 end
 
 rng(1)
@@ -21,8 +20,8 @@ v0_arr = ["0.1"];
 att_arr = ["0.0" "0.001" "0.005" "0.01" "0.05" "0.1"];
 att2_arr = ["0.0" "0.001" "0.005" "0.01" "0.05" "0.1"];
 t_stress_arr = ["10000.0"];
-gamma_arr = ["0"];
-numSeeds = 10;
+gamma_arr = ["0" "0.001" "0.1"];
+numSeeds = 12;
 phi = "0.8";
 Duration = "500";
 N = "40";
@@ -32,6 +31,7 @@ cellDiam = 50; % in pixels
 windowLengthPixels = round(2*cellDiam);
 
 for ka=ka_arr
+    disp("loop over ka!")
     for kb=kb_arr
         % for the original image
         figure(1); 
@@ -140,3 +140,4 @@ for ka=ka_arr
         end
     end
 end
+disp("done!")
