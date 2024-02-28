@@ -292,7 +292,7 @@ def calculateNeighborExchanges(T, trackIDs, startFrame, windowSize):
     globalZLim = min(filtered_data["posz"]), max(filtered_data["posz"])
     # plot_3d_movie(filtered_data)
 
-    DelaunayEdgeDistanceThreshold = 10  # microns
+    DelaunayEdgeDistanceThreshold = 12  # microns
     distances = []
     numberNearestNeighbors = []
     filteredNeighborsPerFrame = []
@@ -401,15 +401,15 @@ def calculateNeighborExchanges(T, trackIDs, startFrame, windowSize):
                 neighborExchanges += 1
         neighborExchangePerFrame.append(neighborExchanges)
 
-    plt.figure()
-    plt.hist(distances, bins=50, range=[0, 50], color="blue", alpha=0.7)
-    plt.xlabel(r"Distance between points ($\mu$m)")
-    plt.ylabel("Counts")
+    #plt.figure()
+    #plt.hist(distances, bins=50, range=[0, 50], color="blue", alpha=0.7)
+    #plt.xlabel(r"Distance between points ($\mu$m)")
+    #plt.ylabel("Counts")
 
-    plt.figure()
-    plt.hist(numberNearestNeighbors, bins=15, range=[0, 15], color="blue", alpha=0.7)
-    plt.xlabel(r"Neighbors")
-    plt.ylabel("Counts")
+    #plt.figure()
+    #plt.hist(numberNearestNeighbors, bins=15, range=[0, 15], color="blue", alpha=0.7)
+    #plt.xlabel(r"Neighbors")
+    #plt.ylabel("Counts")
 
     print("done calculating neighbor exchanges")
 
@@ -561,7 +561,7 @@ def main():
     combined_df = pd.concat([NE_df, speed_df["speed"]], axis=1, sort=False)
 
     #plot_ordering = ['wt', 'MZitg', 'cdh2', 'MZitgcdh', 'cdh2--fbn2b--', 'cdh2--fn1a--fn1b--', 'cdh2MO-fn1a--fn1b--fbn2b--', 'fbn2b', 'fbn2b--fn1a--fn1b--', 'fn1a--fn1b--', 'wt_PZ']
-    plot_ordering = ['wt', 'cdh2', r'itg$\alpha$5', 'Fn1a;1b', 'Fbn2b', r'cdh2, itg$\alpha$5', 'cdh2, Fn1a;1b', 'cdh2, Fn1a;1b, Fbn2b', 'cdh2, Fbn2b',  'Fn1a;1b, Fbn2b', 'wt_PZ']
+    plot_ordering = ['wt', r'itg$\alpha$5', 'Fn1a;1b', 'Fbn2b', 'cdh2', 'cdh2, Fbn2b', 'cdh2, Fn1a;1b, Fbn2b',  r'cdh2, itg$\alpha$5', 'cdh2, Fn1a;1b']
     NE_df['Genotype'] = pd.Categorical(NE_df['Genotype'], categories=plot_ordering, ordered=True)
     NE_df = NE_df.sort_values('Genotype')
     NE_df = NE_df.dropna()
@@ -653,6 +653,25 @@ def main():
     plt.ylabel(r"$\mathcal{A}$")
     plt.tight_layout()  # Automatically adjust subplot params
 
+    debugpy.breakpoint()
+
+    fig, axs = plt.subplots(4,1,sharex=True, figsize=(15,15))
+    plt.rcParams.update({'font.size': 30})
+    plt.subplots_adjust(hspace=0)
+    axs[0].scatter(phi_df["Genotype"], phi_df["mean"])
+    axs[0].set_ylabel(r"$\phi$")
+    axs[1].scatter(shape_df["Genotype"], 1/shape_df["mean"])
+    axs[1].set_ylabel(r"$\mathcal{A}$")
+    axs[2].errorbar(speed_df['GenotypeNum']+speed_df['Offset'], speed_df['speed'], yerr=speed_df['speed_std'], fmt='o', capsize=5)
+    axs[2].set_ylabel(r"v $(\mu m/min)$")
+    axs[3].errorbar(NE_df['GenotypeNum']+NE_df['Offset'], NE_df['NE'], yerr=NE_df['NE_std'], fmt='o', capsize=5)
+    axs[3].set_ylabel(r"NE $(cell \cdot min)^{-1}$")
+    axs[3].set_xticks(range(len(NE_df['Genotype'].unique())))
+    axs[3].set_xticklabels(NE_df['Genotype'].unique())
+    axs[3].tick_params(axis='x', rotation=60)
+    plt.xlabel('Genotype')
+    #plt.tight_layout()  # Automatically adjust subplot params
+    plt.savefig('stackedExperimentalOrderedPlots.png', bbox_inches="tight")
     plt.show()
 
     debugpy.breakpoint()
