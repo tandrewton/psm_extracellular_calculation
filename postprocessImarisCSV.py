@@ -211,8 +211,8 @@ def plot_tri(ax, points, tri, distanceThreshold):
             x = np.append(x, [points[i, 0], points[j, 0], np.nan])
             y = np.append(y, [points[i, 1], points[j, 1], np.nan])
             z = np.append(z, [points[i, 2], points[j, 2], np.nan])
-    ax.plot3D(x, y, z, color="k", lw="1")
-    ax.scatter(points[:, 0], points[:, 1], points[:, 2], color="r", alpha=0.5)
+    ax.plot3D(x, y, z, color="k", lw="0.3")
+    ax.scatter(points[:, 0], points[:, 1], points[:, 2], color="r", alpha=0.5, s=5)
 
 
 def collect_edges(tri):
@@ -253,13 +253,6 @@ def interpolateMissingTracks(T, frameNum, missingTrackIDs):
             elif len(unique_values) == 1:
                 # If only one unique value, store it directly
                 column_averages[column] = unique_values[0]
-
-            """for i in unique_values:
-                if i != i and column != "...10":
-                    print(
-                        f"detected nan with id {id}, frameNum {frameNum}, column {column}"
-                    )
-            """
         newRows.append(column_averages)
     return newRows
 
@@ -366,13 +359,34 @@ def calculateNeighborExchanges(T, trackIDs, startFrame, windowSize):
         nanRowInds = frame_data_sorted.loc[frame_data_sorted["posx"].isna()].index
         tri = Delaunay(points)
         """
-        fig = plt.figure()
+        fig = plt.figure(1)
         ax = plt.axes(projection="3d")
         ax.set_xlim3d(globalXLim[0], globalXLim[1])
         ax.set_ylim3d(globalYLim[0], globalYLim[1])
         ax.set_zlim3d(globalZLim[0], globalZLim[1])
         plot_tri(ax, points, tri, DelaunayEdgeDistanceThreshold)
+        # Remove all ticks
+        ax.set_xticks([])
+        ax.set_yticks([])
+        ax.set_zticks([])
+        # Optional: Remove grey pane background
+        ax.xaxis.pane.fill = False
+        ax.yaxis.pane.fill = False
+        ax.zaxis.pane.fill = False
+        ax.xaxis.pane.set_edgecolor('white')
+        ax.yaxis.pane.set_edgecolor('white')
+        ax.zaxis.pane.set_edgecolor('white')
+        # Remove the axes spines
+        ax.w_xaxis.line.set_color((1.0, 1.0, 1.0, 0.0))
+        ax.w_yaxis.line.set_color((1.0, 1.0, 1.0, 0.0))
+        ax.w_zaxis.line.set_color((1.0, 1.0, 1.0, 0.0))
+        # Optional: Remove grid lines
+        ax.grid(False)
+
+
+        debugpy.breakpoint()
         """
+        
         indptr_nb, nbs = tri.vertex_neighbor_vertices
 
         nbDict = {i: nbs[indptr_nb[i] : indptr_nb[i + 1]] for i in range(len(points))}
@@ -505,8 +519,11 @@ def main():
             )
 
 
-            NE_rate.append(np.mean(neighborExchangePerFrame))
-            NE_std.append(np.std(neighborExchangePerFrame))
+            #NE_rate.append(np.mean(neighborExchangePerFrame))
+            #NE_std.append(np.std(neighborExchangePerFrame))
+            NE_rate.append(neighborExchangePerFrame)
+            NE_std.append(neighborExchangePerFrame*0)
+
 
             # grab current list of NEs, concatenate new NEs onto the value and add back to dict
             current_NE = cell_NE_per_genotype[T["genotype"][0]]
@@ -677,21 +694,21 @@ def main():
     axs[0].set_yticks([0.6, 0.8, 1.0])
     axs[1].scatter(shape_df["Genotype"], shape_df["mean"])
     axs[1].set_ylabel(r"C")
-    axs[1].set_ylim(0.77, 0.91)
-    axs[1].set_yticks([0.8, 0.85, 0.9])
+    axs[1].set_ylim(0.77, 0.93)
+    axs[1].set_yticks([0.8, 0.84, 0.88, 0.92])
     axs[2].errorbar(speed_df['GenotypeNum']+speed_df['Offset'], speed_df['speed'], yerr=speed_df['speed_std'], fmt='o', capsize=5)
     axs[2].set_ylabel(r"v $(\mu m/min)$")
-    #axs[2].set_ylim(0,1)
+    axs[2].set_ylim(0,1)
     #axs[3].errorbar(NE_df['GenotypeNum']+NE_df['Offset'], NE_df['NE'], yerr=NE_df['NE_std'], fmt='o', capsize=5)
     axs[3].scatter(NE_df['GenotypeNum'], NE_df['NE'])
     axs[3].set_ylabel(r"NE $(cell \cdot min)^{-1}$")
-    axs[3].set_ylim(0.05, 0.22)
+    axs[3].set_ylim(0, 0.22)
     #axs[3].set_yticks([0, 0.1, 0.2])
     axs[3].set_xticks(range(len(NE_df['Genotype'].unique())))
     axs[3].set_xticklabels(NE_df['Genotype'].unique())
     axs[3].tick_params(axis='x', rotation=60)
     plt.xlabel('Genotype')
-    #plt.tight_layout()  # Automatically adjust subplot params
+    plt.tight_layout()  # Automatically adjust subplot params
     plt.savefig('stackedExperimentalOrderedPlots.eps', bbox_inches="tight")
     plt.show()
 
