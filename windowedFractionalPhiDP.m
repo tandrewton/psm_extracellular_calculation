@@ -12,30 +12,32 @@ else
 end
 
 rng(1)
-calA0 = "1.0";
+calA0 = "1.0"; 
 k_off = "1.0";
-ka_arr = ["5.0"];
+ka = "2.5";
+kl_arr = ["0.2"];
+%kl_arr = ["1.0"];
 kb_arr = ["0.01"];
-v0_arr = ["0.1" "0.15"];
-att_arr = ["0.0" "0.01" "0.05"];
-att2_arr = ["0.0" "0.005" "0.05"];
+v0_arr = ["0.05"];
+att_arr = ["0.001" "0.005" "0.01" "0.03" "0.05"];
+att2_arr = ["0.0005" "0.001" "0.005" "0.01" "0.05"];
 %att2_arr = ["0.0"];
 t_stress_arr = ["10000.0"];
 gamma_arr = ["0"];
 kon_arr=["1.0"];
-koff_arr=["0.01", "1.0", "100.0"];
+koff_arr=["0.1", "100.0"];
 %kecm_arr=["0.0", "0.01", "0.1", "1.0"];
 numSeeds = 10;
 phi = "0.8"; 
 Duration = "300";
-N = "30";
+N = "40";
 startSeed = "1";
 
 cellDiam = 50; % in pixels
 windowLengthPixels = round(2*cellDiam);
 
-for ka=ka_arr
-    disp("loop over ka!")
+for kl=kl_arr
+    disp("loop over kl!")
     for kb=kb_arr
         % for the original image
         figure(1); 
@@ -58,12 +60,12 @@ for ka=ka_arr
                                     randWindowN = [];
                                     for seed=1:numSeeds
                                         firstFrame = 25; % make sure to adjust these as necessary
-                                        lastFrame = 70;
+                                        lastFrame = 60;
                                         packingFractionPerSeed = [];
                                         for ff=firstFrame:lastFrame
                                             %filename = "psmtest/psmpsmtest8_seed1fr"+ff;
                                             filename = "psm_calA0"+calA0+"_phi"+phi+"_tm"+t_stress+"_v0"+v0+"_t_abp1.0_gamma"+gamma+...
-                                                "_k_on_"+k_on+"_k_off_"+k_off+"_k_ecm_"+k_ecm+"_kl1.0_ka"+ka+"_kb"+kb+"/"...
+                                                "_k_on_"+k_on+"_k_off_"+k_off+"_k_ecm_"+k_ecm+"_kl"+kl+"_ka"+ka+"_kb"+kb+"/"...
                                                 + "psm_N"+N+"_dur"+Duration+"_att"+att+"_att2"+att2+"_sd"+string(seed)+"fr"+ff;
                                             raw_file = filename+".tif";
                                             bd_file = filename+"_bd.tif";
@@ -106,11 +108,11 @@ for ka=ka_arr
                                         rowDim = size(packingFractionPerSeed');
                                         A = table(packingFractionPerSeed', repmat(att, rowDim), ...  
                                             repmat(v0, rowDim), repmat(att2, rowDim), ...
-                                            repmat(t_stress, rowDim), repmat(gamma, rowDim), ...
+                                            repmat(kl, rowDim), repmat(gamma, rowDim), ...
                                             repmat(k_on, rowDim), repmat(k_off, rowDim), ...
                                             repmat(k_ecm, rowDim), repmat(seed, rowDim));
                             
-                                        A.Properties.VariableNames = ["phi", "att", "v0", "att2", "tm", "gamma", "k_on", "k_off", "k_ecm", "seed"];
+                                        A.Properties.VariableNames = ["phi", "att", "v0", "att2", "kl", "gamma", "k_on", "k_off", "k_ecm", "seed"];
                                         writetable(A, 'windowedPhiDataFrame_calA'+calA0+'_phi'+phi+'.txt', 'WriteMode', 'append');
                                     end
                         
