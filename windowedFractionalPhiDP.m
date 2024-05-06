@@ -15,25 +15,26 @@ rng(1)
 calA0 = "1.0"; 
 k_off = "1.0";
 ka = "2.5";
-kl_arr = ["0.2"];
+kl_arr = ["0.2"];   
 %kl_arr = ["1.0"];
 kb_arr = ["0.01"];
-v0_arr = ["0.05"];
-att_arr = ["0.001" "0.005" "0.01" "0.03" "0.05"];
-att2_arr = ["0.0005" "0.001" "0.005" "0.01" "0.05"];
-%att2_arr = ["0.0"];
+v0_arr = ["0.1"];
+%att_arr = ["0.001" "0.005" "0.01" "0.03" "0.05" "0.1"];
+%att2_arr = ["0.0005" "0.001" "0.005" "0.01" "0.05" "0.1"];
+att_arr = ["0.01" "0.03"];
+att2_arr = ["0" "0.005" "0.01" "0.05"];
 t_stress_arr = ["10000.0"];
 gamma_arr = ["0"];
 kon_arr=["1.0"];
 koff_arr=["0.1", "100.0"];
-%kecm_arr=["0.0", "0.01", "0.1", "1.0"];
+%kecm_arr=["0.001", "0.005", "0.01", "0.05"];
 numSeeds = 10;
 phi = "0.8"; 
 Duration = "300";
 N = "40";
 startSeed = "1";
 
-cellDiam = 50; % in pixels
+cellDiam = 75; % in pixels
 windowLengthPixels = round(2*cellDiam);
 
 for kl=kl_arr
