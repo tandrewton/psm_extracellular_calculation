@@ -256,6 +256,7 @@ def interpolateMissingTracks(T, frameNum, missingTrackIDs):
         newRows.append(column_averages)
     return newRows
 
+
 def calculateSpeedsPerFrame(T):
     # output: np array of speeds, each entry is the average speed of a given frame
     speedPerFrame = []
@@ -263,9 +264,10 @@ def calculateSpeedsPerFrame(T):
     for frame in frames:
         filtered_data = T[T["Time"] == frame]
         speeds = np.mean(filtered_data["speed"])
-        #speeds = np.mean(np.sqrt(filtered_data["velx"]**2 + filtered_data["velz"]**2))
+        # speeds = np.mean(np.sqrt(filtered_data["velx"]**2 + filtered_data["velz"]**2))
         speedPerFrame.append(speeds)
     return np.array(speedPerFrame)
+
 
 def calculateSpeedsPerEmbryo(T):
     # output: np array of speeds, each entry is the average speed of a given frame
@@ -273,8 +275,10 @@ def calculateSpeedsPerEmbryo(T):
     frames = T["Time"].unique()
     for frame in frames:
         filtered_data = T[T["Time"] == frame]
-        #speeds = np.mean(np.sqrt(filtered_data["velx"]**2 + filtered_data["velz"]**2))
-        speedPerEmbryo = np.concatenate((speedPerEmbryo, filtered_data["speed"].to_numpy()))
+        # speeds = np.mean(np.sqrt(filtered_data["velx"]**2 + filtered_data["velz"]**2))
+        speedPerEmbryo = np.concatenate(
+            (speedPerEmbryo, filtered_data["speed"].to_numpy())
+        )
     return np.array(speedPerEmbryo)
 
 
@@ -386,7 +390,7 @@ def calculateNeighborExchanges(T, trackIDs, startFrame, windowSize):
 
         debugpy.breakpoint()
         """
-        
+
         indptr_nb, nbs = tri.vertex_neighbor_vertices
 
         nbDict = {i: nbs[indptr_nb[i] : indptr_nb[i + 1]] for i in range(len(points))}
@@ -417,19 +421,19 @@ def calculateNeighborExchanges(T, trackIDs, startFrame, windowSize):
                 neighborExchanges += 1
         neighborExchangePerFrame.append(neighborExchanges)
 
-    #plt.figure()
-    #plt.hist(distances, bins=50, range=[0, 50], color="blue", alpha=0.7)
-    #plt.xlabel(r"Distance between points ($\mu$m)")
-    #plt.ylabel("Counts")
+    # plt.figure()
+    # plt.hist(distances, bins=50, range=[0, 50], color="blue", alpha=0.7)
+    # plt.xlabel(r"Distance between points ($\mu$m)")
+    # plt.ylabel("Counts")
 
-    #plt.figure()
-    #plt.hist(numberNearestNeighbors, bins=15, range=[0, 15], color="blue", alpha=0.7)
-    #plt.xlabel(r"Neighbors")
-    #plt.ylabel("Counts")
+    # plt.figure()
+    # plt.hist(numberNearestNeighbors, bins=15, range=[0, 15], color="blue", alpha=0.7)
+    # plt.xlabel(r"Neighbors")
+    # plt.ylabel("Counts")
 
     print("done calculating neighbor exchanges")
 
-    return np.array(neighborExchangePerFrame)
+    return np.array(neighborExchangePerFrame), numberNearestNeighbors
 
 
 def main():
@@ -457,11 +461,11 @@ def main():
         print("current file is: ", filename)
         T = pd.read_csv(filename)
 
-        #if (T["genotype"][0] == "wt_PZ"):
+        # if (T["genotype"][0] == "wt_PZ"):
         #    continue
 
         genotypes.append(T["genotype"][0])
-        NE_filenames.append(filename.split('/')[-1])
+        NE_filenames.append(filename.split("/")[-1])
         print("current genotype is ", T["genotype"][0])
         # filter dataset to subsample time
         firstAndSkippedFramesCondition = (T.Time % (nSkip + 1) == 0) | (T.Time == 1)
@@ -489,17 +493,19 @@ def main():
             # plot_3d_movie(sample_data)
 
             # get the trackIDs of tracks that persist from frame 1 to half the movie duration
-            #halfMovieDuration = int(sample_data["Time"].max() / 2)
-            halfMovieDuration = int(sample_data["Time"].max()-5)
+            # halfMovieDuration = int(sample_data["Time"].max() / 2)
+            halfMovieDuration = int(sample_data["Time"].max() - 5)
             print(halfMovieDuration, sample_data["Time"].max())
             # halfMovieDuration = int(sample_data["Time"].max()) - 2
             persistingTrackIDs = validTrackIDs(sample_data, 1, halfMovieDuration)
 
-            neighborExchangePerFrame = calculateNeighborExchanges(
+            neighborExchangePerFrame, numNeighbors = calculateNeighborExchanges(
                 sample_data, persistingTrackIDs, 1, halfMovieDuration
             )
 
-            print(neighborExchangePerFrame)
+            print(f"numNeighbors={numNeighbors}")
+
+            print(f"neighborExchangePerFrame={neighborExchangePerFrame}")
 
             # divide by len track IDs to get per cell
             # divide by time spacing to get per minute
@@ -515,20 +521,23 @@ def main():
                 "number of cells : ",
                 len(persistingTrackIDs),
                 "total_time : ",
-                time_spacing*halfMovieDuration
+                time_spacing * halfMovieDuration,
             )
 
-
-            #NE_rate.append(np.mean(neighborExchangePerFrame))
-            #NE_std.append(np.std(neighborExchangePerFrame))
+            # NE_rate.append(np.mean(neighborExchangePerFrame))
+            # NE_std.append(np.std(neighborExchangePerFrame))
             NE_rate.append(neighborExchangePerFrame)
-            NE_std.append(neighborExchangePerFrame*0)
-
+            NE_std.append(neighborExchangePerFrame * 0)
 
             # grab current list of NEs, concatenate new NEs onto the value and add back to dict
             current_NE = cell_NE_per_genotype[T["genotype"][0]]
             current_NE = current_NE[~np.isnan(current_NE)]
-            cell_NE_per_genotype[T["genotype"][0]] = np.concatenate((current_NE, neighborExchangePerFrame[~np.isnan(neighborExchangePerFrame)]))
+            cell_NE_per_genotype[T["genotype"][0]] = np.concatenate(
+                (
+                    current_NE,
+                    neighborExchangePerFrame[~np.isnan(neighborExchangePerFrame)],
+                )
+            )
 
             speedsPerEmbryo = calculateSpeedsPerEmbryo(sample_data)
             cell_speeds.append(np.nanmean(speedsPerEmbryo))
@@ -536,35 +545,37 @@ def main():
 
             current_speeds = cell_speeds_per_genotype[T["genotype"][0]]
             current_speeds = current_speeds[~np.isnan(current_speeds)]
-            cell_speeds_per_genotype[T["genotype"][0]] = np.concatenate((current_speeds, speedsPerEmbryo[~np.isnan(speedsPerEmbryo)]))
+            cell_speeds_per_genotype[T["genotype"][0]] = np.concatenate(
+                (current_speeds, speedsPerEmbryo[~np.isnan(speedsPerEmbryo)])
+            )
 
-        NE_current_file = pd.DataFrame({'NE': neighborExchangePerFrame})
+        NE_current_file = pd.DataFrame({"NE": neighborExchangePerFrame})
         NE_current_file["genotype"] = T["genotype"][0]
-        #NE_current_file["fname"] = filename
-        split_path = filename.split('cellmotionproc')
-        NE_folder_filename = split_path[0]+'cellmotionproc/NE_data'+split_path[1]
-        NE_current_file.to_csv(NE_folder_filename[:-4]+"_NE_.csv")
-            
+        # NE_current_file["fname"] = filename
+        split_path = filename.split("cellmotionproc")
+        NE_folder_filename = split_path[0] + "cellmotionproc/NE_data" + split_path[1]
+        NE_current_file.to_csv(NE_folder_filename[:-4] + "_NE_.csv")
+
     debugpy.breakpoint()
 
     # exchange genotype names for shorter names for plotting simplicity
     genotype_replacements = {
-        'wt': 'Wild type',
-        'MZitg': r'itg$\alpha$5',
-        'itga5--': r'itg$\alpha$5',
-        'MZitgcdh': r'cdh2; itg$\alpha$5',
-        'itga5--cdh2--': r'cdh2; itg$\alpha$5',
-        'cdh2--fbn2b--': 'cdh2; Fbn2b',
-        'cdh2--fn1a--fn1b--': 'cdh2; Fn1a;1b',
-        'fn1a--fn1b--cdh2--': 'cdh2; Fn1a;1b',
-        'cdh2MO-fn1a--fn1b--fbn2b--': 'cdh2; Fn1a;1b; Fbn2b', 
-        'cdh2MO-fbn2b--fn1a--fn1b--': 'cdh2; Fn1a;1b; Fbn2b', 
-        'cdh2MOfbn2b--fn1a--fn1b--': 'cdh2; Fn1a;1b; Fbn2b', 
-        'fbn2b': 'Fbn2b', 
-        'fbn2b--': 'Fbn2b',
-        'fbn2b--fn1a--fn1b--': 'Fn1a;1b; Fbn2b', 
-        'fbn2b--_fn1a--_fn1b--': 'Fn1a;1b; Fbn2b', 
-        'fn1a--fn1b--': 'Fn1a;1b'
+        "wt": "Wild type",
+        "MZitg": r"itg$\alpha$5",
+        "itga5--": r"itg$\alpha$5",
+        "MZitgcdh": r"cdh2; itg$\alpha$5",
+        "itga5--cdh2--": r"cdh2; itg$\alpha$5",
+        "cdh2--fbn2b--": "cdh2; Fbn2b",
+        "cdh2--fn1a--fn1b--": "cdh2; Fn1a;1b",
+        "fn1a--fn1b--cdh2--": "cdh2; Fn1a;1b",
+        "cdh2MO-fn1a--fn1b--fbn2b--": "cdh2; Fn1a;1b; Fbn2b",
+        "cdh2MO-fbn2b--fn1a--fn1b--": "cdh2; Fn1a;1b; Fbn2b",
+        "cdh2MOfbn2b--fn1a--fn1b--": "cdh2; Fn1a;1b; Fbn2b",
+        "fbn2b": "Fbn2b",
+        "fbn2b--": "Fbn2b",
+        "fbn2b--fn1a--fn1b--": "Fn1a;1b; Fbn2b",
+        "fbn2b--_fn1a--_fn1b--": "Fn1a;1b; Fbn2b",
+        "fn1a--fn1b--": "Fn1a;1b",
     }
 
     # Function to filter genotypes based on the replacements dictionary
@@ -573,120 +584,220 @@ def main():
 
     # Apply the filter function to each genotype in the list
     genotypes = [filter_genotype(genotype) for genotype in genotypes]
-    
-    NE_df = pd.DataFrame({'Genotype': genotypes, 'NE': NE_rate, 'NE_std': NE_std, 'filename': NE_filenames})
-    speed_df = pd.DataFrame({'Genotype': genotypes, 'speed': cell_speeds, 'speed_std': cell_speed_std})
+
+    NE_df = pd.DataFrame(
+        {
+            "Genotype": genotypes,
+            "NE": NE_rate,
+            "NE_std": NE_std,
+            "filename": NE_filenames,
+        }
+    )
+    speed_df = pd.DataFrame(
+        {"Genotype": genotypes, "speed": cell_speeds, "speed_std": cell_speed_std}
+    )
     combined_df = pd.concat([NE_df, speed_df["speed"]], axis=1, sort=False)
 
-    #plot_ordering = ['wt', 'MZitg', 'cdh2', 'MZitgcdh', 'cdh2--fbn2b--', 'cdh2--fn1a--fn1b--', 'cdh2MO-fn1a--fn1b--fbn2b--', 'fbn2b', 'fbn2b--fn1a--fn1b--', 'fn1a--fn1b--', 'wt_PZ']
-    plot_ordering = ['Wild type', 'Fbn2b', 'Fn1a;1b', 'Fn1a;1b; Fbn2b', r'itg$\alpha$5', 'cdh2', 'cdh2; Fbn2b', 'cdh2; Fn1a;1b; Fbn2b', 'cdh2; Fn1a;1b', r'cdh2; itg$\alpha$5']
-    NE_df['Genotype'] = pd.Categorical(NE_df['Genotype'], categories=plot_ordering, ordered=True)
-    NE_df = NE_df.sort_values('Genotype')
+    # plot_ordering = ['wt', 'MZitg', 'cdh2', 'MZitgcdh', 'cdh2--fbn2b--', 'cdh2--fn1a--fn1b--', 'cdh2MO-fn1a--fn1b--fbn2b--', 'fbn2b', 'fbn2b--fn1a--fn1b--', 'fn1a--fn1b--', 'wt_PZ']
+    plot_ordering = [
+        "Wild type",
+        "Fbn2b",
+        "Fn1a;1b",
+        "Fn1a;1b; Fbn2b",
+        r"itg$\alpha$5",
+        "cdh2",
+        "cdh2; Fbn2b",
+        "cdh2; Fn1a;1b; Fbn2b",
+        "cdh2; Fn1a;1b",
+        r"cdh2; itg$\alpha$5",
+    ]
+    NE_df["Genotype"] = pd.Categorical(
+        NE_df["Genotype"], categories=plot_ordering, ordered=True
+    )
+    NE_df = NE_df.sort_values("Genotype")
     NE_df = NE_df.dropna()
 
-    speed_df['Genotype'] = pd.Categorical(speed_df['Genotype'], categories=plot_ordering, ordered=True)
-    speed_df = speed_df.sort_values('Genotype')
+    speed_df["Genotype"] = pd.Categorical(
+        speed_df["Genotype"], categories=plot_ordering, ordered=True
+    )
+    speed_df = speed_df.sort_values("Genotype")
     speed_df = speed_df.dropna()
 
-    combined_df['Genotype'] = pd.Categorical(combined_df['Genotype'], categories=plot_ordering, ordered=True)
-    combined_df = combined_df.sort_values('Genotype')
+    combined_df["Genotype"] = pd.Categorical(
+        combined_df["Genotype"], categories=plot_ordering, ordered=True
+    )
+    combined_df = combined_df.sort_values("Genotype")
     combined_df = combined_df.dropna()
 
-    plt.figure(figsize=(12,8))
-    plt.scatter(NE_df['Genotype'], NE_df['NE'])
+    plt.figure(figsize=(12, 8))
+    plt.scatter(NE_df["Genotype"], NE_df["NE"])
     plt.xticks(rotation=75)
-    plt.xlabel('Genotype')
-    plt.ylabel('NE rate (per cell per min)')
+    plt.xlabel("Genotype")
+    plt.ylabel("NE rate (per cell per min)")
     plt.tight_layout()  # Automatically adjust subplot params
     debugpy.breakpoint()
 
     for genotype in plot_ordering:
-        print(r'Neighbor exchanges: cdh2; itg$\alpha$5,', genotype, mannwhitneyu(NE_df[NE_df["Genotype"] == r'cdh2; itg$\alpha$5']["NE"], NE_df[NE_df["Genotype"] == genotype]["NE"], alternative='greater'))
-        print(r'Speeds: cdh2; itg$\alpha$5,', genotype, mannwhitneyu(speed_df[speed_df["Genotype"] == r'cdh2; itg$\alpha$5']["speed"], speed_df[speed_df["Genotype"] == genotype]["speed"], alternative='greater'))
+        print(
+            r"Neighbor exchanges: cdh2; itg$\alpha$5,",
+            genotype,
+            mannwhitneyu(
+                NE_df[NE_df["Genotype"] == r"cdh2; itg$\alpha$5"]["NE"],
+                NE_df[NE_df["Genotype"] == genotype]["NE"],
+                alternative="greater",
+            ),
+        )
+        print(
+            r"Speeds: cdh2; itg$\alpha$5,",
+            genotype,
+            mannwhitneyu(
+                speed_df[speed_df["Genotype"] == r"cdh2; itg$\alpha$5"]["speed"],
+                speed_df[speed_df["Genotype"] == genotype]["speed"],
+                alternative="greater",
+            ),
+        )
 
     for key in cell_NE_per_genotype.keys():
         print(key)
-        print(r'Neighbor exchanges: cdh2; itg$\alpha$5,', key, mannwhitneyu(cell_NE_per_genotype['MZitgcdh'], cell_NE_per_genotype[key], alternative='greater'))
-        print(r'Speeds: cdh2; itg$\alpha$5,', key, mannwhitneyu(cell_speeds_per_genotype['MZitgcdh'], cell_speeds_per_genotype[key], alternative='greater'))
+        print(
+            r"Neighbor exchanges: cdh2; itg$\alpha$5,",
+            key,
+            mannwhitneyu(
+                cell_NE_per_genotype["MZitgcdh"],
+                cell_NE_per_genotype[key],
+                alternative="greater",
+            ),
+        )
+        print(
+            r"Speeds: cdh2; itg$\alpha$5,",
+            key,
+            mannwhitneyu(
+                cell_speeds_per_genotype["MZitgcdh"],
+                cell_speeds_per_genotype[key],
+                alternative="greater",
+            ),
+        )
 
-    NE_df.to_csv('NE_df.csv', index=False)
+    NE_df.to_csv("NE_df.csv", index=False)
 
     # Convert 'Category' to a categorical type and assign numerical values
-    NE_df['GenotypeNum'] = NE_df['Genotype'].astype('category').cat.codes
+    NE_df["GenotypeNum"] = NE_df["Genotype"].astype("category").cat.codes
     offset_width = 0.1  # Adjust the spacing between points in the same category
-    grouped = NE_df.groupby('GenotypeNum')
-    offsets = {cat: np.linspace(-offset_width/2, offset_width/2, num=len(group)) for cat, group in grouped}
-    NE_df['Offset'] = NE_df.apply(lambda row: offsets[row['GenotypeNum']][grouped.groups[row['GenotypeNum']].get_loc(row.name)], axis=1)
+    grouped = NE_df.groupby("GenotypeNum")
+    offsets = {
+        cat: np.linspace(-offset_width / 2, offset_width / 2, num=len(group))
+        for cat, group in grouped
+    }
+    NE_df["Offset"] = NE_df.apply(
+        lambda row: offsets[row["GenotypeNum"]][
+            grouped.groups[row["GenotypeNum"]].get_loc(row.name)
+        ],
+        axis=1,
+    )
 
-    plt.figure(figsize=(12,8))
-    plt.errorbar(NE_df['GenotypeNum']+NE_df['Offset'], NE_df['NE'], yerr=NE_df['NE_std'], fmt='o', capsize=5)
+    plt.figure(figsize=(12, 8))
+    plt.errorbar(
+        NE_df["GenotypeNum"] + NE_df["Offset"],
+        NE_df["NE"],
+        yerr=NE_df["NE_std"],
+        fmt="o",
+        capsize=5,
+    )
     # Set the x-ticks and their labels to the original string values
-    plt.xticks(range(len(NE_df['Genotype'].unique())), NE_df['Genotype'].unique())
+    plt.xticks(range(len(NE_df["Genotype"].unique())), NE_df["Genotype"].unique())
     plt.xticks(rotation=75)
-    plt.xlabel('Genotype')
+    plt.xlabel("Genotype")
     plt.ylabel(r"NE rate (per cell per min)")
     plt.tight_layout()  # Automatically adjust subplot params
 
-    plt.figure(figsize=(12,8))
-    plt.scatter(speed_df['Genotype'], speed_df['speed'])
+    plt.figure(figsize=(12, 8))
+    plt.scatter(speed_df["Genotype"], speed_df["speed"])
     plt.xticks(rotation=75)
-    plt.xlabel('Genotype')
+    plt.xlabel("Genotype")
     plt.ylabel(r"Speed $(\mu m/min)$")
     plt.tight_layout()  # Automatically adjust subplot params
 
     # Convert 'Category' to a categorical type and assign numerical values
-    speed_df['GenotypeNum'] = speed_df['Genotype'].astype('category').cat.codes
+    speed_df["GenotypeNum"] = speed_df["Genotype"].astype("category").cat.codes
     offset_width = 0.1  # Adjust the spacing between points in the same category
-    grouped = speed_df.groupby('GenotypeNum')
-    offsets = {cat: np.linspace(-offset_width/2, offset_width/2, num=len(group)) for cat, group in grouped}
-    speed_df['Offset'] = speed_df.apply(lambda row: offsets[row['GenotypeNum']][grouped.groups[row['GenotypeNum']].get_loc(row.name)], axis=1)
+    grouped = speed_df.groupby("GenotypeNum")
+    offsets = {
+        cat: np.linspace(-offset_width / 2, offset_width / 2, num=len(group))
+        for cat, group in grouped
+    }
+    speed_df["Offset"] = speed_df.apply(
+        lambda row: offsets[row["GenotypeNum"]][
+            grouped.groups[row["GenotypeNum"]].get_loc(row.name)
+        ],
+        axis=1,
+    )
 
-    plt.figure(figsize=(12,8))
-    plt.errorbar(speed_df['GenotypeNum']+speed_df['Offset'], speed_df['speed'], yerr=speed_df['speed_std'], fmt='o', capsize=5)
+    plt.figure(figsize=(12, 8))
+    plt.errorbar(
+        speed_df["GenotypeNum"] + speed_df["Offset"],
+        speed_df["speed"],
+        yerr=speed_df["speed_std"],
+        fmt="o",
+        capsize=5,
+    )
     # Set the x-ticks and their labels to the original string values
-    plt.xticks(range(len(speed_df['Genotype'].unique())), speed_df['Genotype'].unique())
+    plt.xticks(range(len(speed_df["Genotype"].unique())), speed_df["Genotype"].unique())
     plt.xticks(rotation=75)
-    plt.xlabel('Genotype')
+    plt.xlabel("Genotype")
     plt.ylabel(r"Speed $(\mu m/min)$")
     plt.tight_layout()  # Automatically adjust subplot params
 
-    plt.figure(figsize=(12,8))
+    plt.figure(figsize=(12, 8))
     sns.scatterplot(data=combined_df, x="speed", y="NE", hue="Genotype")
-    plt.legend(bbox_to_anchor=(1.05, 1), loc='upper left', borderaxespad=0)
+    plt.legend(bbox_to_anchor=(1.05, 1), loc="upper left", borderaxespad=0)
     plt.xlabel(r"Speed $(\mu m/min)$")
     plt.ylabel(r"NE rate (per cell per min)")
     plt.tight_layout()  # Automatically adjust subplot params
 
-    packingFractionCSV = pd.read_csv(masterSpreadsheetsFolder + "/packingfrac_transverse_summary.csv")
-    phi_genotypes = [filter_genotype(genotype) for genotype in packingFractionCSV["genotype"]]
-    phi_df = pd.DataFrame({'Genotype': phi_genotypes, 'mean': packingFractionCSV["mean"]})
-    phi_df['Genotype'] = pd.Categorical(phi_df['Genotype'], categories=plot_ordering, ordered=True)
-    phi_df = phi_df.sort_values('Genotype')
+    packingFractionCSV = pd.read_csv(
+        masterSpreadsheetsFolder + "/packingfrac_transverse_summary.csv"
+    )
+    phi_genotypes = [
+        filter_genotype(genotype) for genotype in packingFractionCSV["genotype"]
+    ]
+    phi_df = pd.DataFrame(
+        {"Genotype": phi_genotypes, "mean": packingFractionCSV["mean"]}
+    )
+    phi_df["Genotype"] = pd.Categorical(
+        phi_df["Genotype"], categories=plot_ordering, ordered=True
+    )
+    phi_df = phi_df.sort_values("Genotype")
     phi_df = phi_df.dropna()
-    plt.figure(figsize=(12,8))
+    plt.figure(figsize=(12, 8))
     plt.scatter(phi_df["Genotype"], phi_df["mean"])
     plt.xticks(rotation=75)
-    plt.xlabel('Genotype')
+    plt.xlabel("Genotype")
     plt.ylabel(r"$\phi$")
     plt.tight_layout()  # Automatically adjust subplot params
 
-    shapeCSV = pd.read_csv(masterSpreadsheetsFolder + "/cellprops_summary_transverse.csv")
+    shapeCSV = pd.read_csv(
+        masterSpreadsheetsFolder + "/cellprops_summary_transverse.csv"
+    )
     shape_genotypes = [filter_genotype(genotype) for genotype in shapeCSV["genotype"]]
-    shape_df = pd.DataFrame({'Genotype': shape_genotypes, 'mean': shapeCSV["Circularity_mean"]})
-    shape_df['Genotype'] = pd.Categorical(shape_df['Genotype'], categories=plot_ordering, ordered=True)
-    shape_df = shape_df.sort_values('Genotype')
+    shape_df = pd.DataFrame(
+        {"Genotype": shape_genotypes, "mean": shapeCSV["Circularity_mean"]}
+    )
+    shape_df["Genotype"] = pd.Categorical(
+        shape_df["Genotype"], categories=plot_ordering, ordered=True
+    )
+    shape_df = shape_df.sort_values("Genotype")
     shape_df = shape_df.dropna()
-    plt.figure(figsize=(12,8))
+    plt.figure(figsize=(12, 8))
     plt.scatter(shape_df["Genotype"], shape_df["mean"])
     plt.xticks(rotation=75)
-    plt.xlabel('Genotype')
+    plt.xlabel("Genotype")
     plt.ylabel(r"C")
     plt.tight_layout()  # Automatically adjust subplot params
 
     debugpy.breakpoint()
 
-    fig, axs = plt.subplots(4,1,sharex=True, figsize=(15,15))
-    plt.rcParams.update({'font.size': 30})
+    fig, axs = plt.subplots(4, 1, sharex=True, figsize=(15, 15))
+    plt.rcParams.update({"font.size": 30})
     plt.subplots_adjust(hspace=0)
     axs[0].scatter(phi_df["Genotype"], phi_df["mean"])
     axs[0].set_ylabel(r"$\phi$")
@@ -696,23 +807,30 @@ def main():
     axs[1].set_ylabel(r"C")
     axs[1].set_ylim(0.77, 0.93)
     axs[1].set_yticks([0.8, 0.84, 0.88, 0.92])
-    axs[2].errorbar(speed_df['GenotypeNum']+speed_df['Offset'], speed_df['speed'], yerr=speed_df['speed_std'], fmt='o', capsize=5)
+    axs[2].errorbar(
+        speed_df["GenotypeNum"] + speed_df["Offset"],
+        speed_df["speed"],
+        yerr=speed_df["speed_std"],
+        fmt="o",
+        capsize=5,
+    )
     axs[2].set_ylabel(r"v $(\mu m/min)$")
-    axs[2].set_ylim(0,1)
-    #axs[3].errorbar(NE_df['GenotypeNum']+NE_df['Offset'], NE_df['NE'], yerr=NE_df['NE_std'], fmt='o', capsize=5)
-    axs[3].scatter(NE_df['GenotypeNum'], NE_df['NE'])
+    axs[2].set_ylim(0, 1)
+    # axs[3].errorbar(NE_df['GenotypeNum']+NE_df['Offset'], NE_df['NE'], yerr=NE_df['NE_std'], fmt='o', capsize=5)
+    axs[3].scatter(NE_df["GenotypeNum"], NE_df["NE"])
     axs[3].set_ylabel(r"NE $(cell \cdot min)^{-1}$")
     axs[3].set_ylim(0, 0.22)
-    #axs[3].set_yticks([0, 0.1, 0.2])
-    axs[3].set_xticks(range(len(NE_df['Genotype'].unique())))
-    axs[3].set_xticklabels(NE_df['Genotype'].unique())
-    axs[3].tick_params(axis='x', rotation=60)
-    plt.xlabel('Genotype')
+    # axs[3].set_yticks([0, 0.1, 0.2])
+    axs[3].set_xticks(range(len(NE_df["Genotype"].unique())))
+    axs[3].set_xticklabels(NE_df["Genotype"].unique())
+    axs[3].tick_params(axis="x", rotation=60)
+    plt.xlabel("Genotype")
     plt.tight_layout()  # Automatically adjust subplot params
-    plt.savefig('stackedExperimentalOrderedPlots.eps', bbox_inches="tight")
+    plt.savefig("stackedExperimentalOrderedPlots.eps", bbox_inches="tight")
     plt.show()
 
     debugpy.breakpoint()
+
 
 if __name__ == "__main__":
     main()
