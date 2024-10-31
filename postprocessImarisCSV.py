@@ -179,6 +179,7 @@ def validTrackIDs(T, startFrame, windowSize):
     for i in range(1, T["Time"].max() - windowSize + 1):
         counter = 0
         for j in trackStartStopTimes:
+            # check if track starts before i and ends after i+windowSize
             if j[1] <= i and j[2] > i + windowSize:
                 counter += 1
                 if i == startFrame:
@@ -450,7 +451,9 @@ def main():
     NE_filenames = []
 
     NE_rate = []
+    exploded_NE_rate = []
     NE_std = []
+    exploded_NE_std = []
     cell_speeds = []
     cell_speed_std = []
     cell_speeds_per_genotype = defaultdict(lambda: np.array([]))
@@ -524,10 +527,19 @@ def main():
                 time_spacing * halfMovieDuration,
             )
 
+<<<<<<< Updated upstream
             # NE_rate.append(np.mean(neighborExchangePerFrame))
             # NE_std.append(np.std(neighborExchangePerFrame))
             NE_rate.append(neighborExchangePerFrame)
             NE_std.append(neighborExchangePerFrame * 0)
+=======
+
+            NE_rate.append(np.mean(neighborExchangePerFrame))
+            NE_std.append(np.std(neighborExchangePerFrame))
+            exploded_NE_rate.append(neighborExchangePerFrame)
+            exploded_NE_std.append(0)
+
+>>>>>>> Stashed changes
 
             # grab current list of NEs, concatenate new NEs onto the value and add back to dict
             current_NE = cell_NE_per_genotype[T["genotype"][0]]
@@ -551,6 +563,7 @@ def main():
 
         NE_current_file = pd.DataFrame({"NE": neighborExchangePerFrame})
         NE_current_file["genotype"] = T["genotype"][0]
+<<<<<<< Updated upstream
         # NE_current_file["fname"] = filename
         split_path = filename.split("cellmotionproc")
         NE_folder_filename = split_path[0] + "cellmotionproc/NE_data" + split_path[1]
@@ -576,6 +589,31 @@ def main():
         "fbn2b--fn1a--fn1b--": "Fn1a;1b; Fbn2b",
         "fbn2b--_fn1a--_fn1b--": "Fn1a;1b; Fbn2b",
         "fn1a--fn1b--": "Fn1a;1b",
+=======
+        #NE_current_file["fname"] = filename
+        split_path = filename.split('cellmotionproc')
+        NE_folder_filename = split_path[0]+'cellmotionproc/NE_data'+split_path[1]
+        NE_current_file.to_csv(NE_folder_filename[:-4]+"_NE_.csv")
+
+    # exchange genotype names for shorter names for plotting simplicity
+    genotype_replacements = {
+        'wt': 'Wild type',
+        'MZitg': r'itg$\alpha$5',
+        'itga5--': r'itg$\alpha$5',
+        'MZitgcdh': r'cdh2; itg$\alpha$5',
+        'itga5--cdh2--': r'cdh2; itg$\alpha$5',
+        'cdh2--fbn2b--': 'cdh2; Fbn2b',
+        'cdh2--fn1a--fn1b--': 'cdh2; Fn1a;1b',
+        'fn1a--fn1b--cdh2--': 'cdh2; Fn1a;1b',
+        'cdh2MO-fn1a--fn1b--fbn2b--': 'cdh2-MO; Fn1a;1b; Fbn2b', 
+        'cdh2MO-fbn2b--fn1a--fn1b--': 'cdh2-MO; Fn1a;1b; Fbn2b', 
+        'cdh2MOfbn2b--fn1a--fn1b--': 'cdh2-MO; Fn1a;1b; Fbn2b', 
+        'fbn2b': 'Fbn2b', 
+        'fbn2b--': 'Fbn2b',
+        'fbn2b--fn1a--fn1b--': 'Fn1a;1b; Fbn2b', 
+        'fbn2b--_fn1a--_fn1b--': 'Fn1a;1b; Fbn2b', 
+        'fn1a--fn1b--': 'Fn1a;1b'
+>>>>>>> Stashed changes
     }
 
     # Function to filter genotypes based on the replacements dictionary
@@ -584,6 +622,7 @@ def main():
 
     # Apply the filter function to each genotype in the list
     genotypes = [filter_genotype(genotype) for genotype in genotypes]
+<<<<<<< Updated upstream
 
     NE_df = pd.DataFrame(
         {
@@ -615,7 +654,25 @@ def main():
         NE_df["Genotype"], categories=plot_ordering, ordered=True
     )
     NE_df = NE_df.sort_values("Genotype")
+=======
+    
+    NE_df = pd.DataFrame({'Genotype': genotypes, 'NE': NE_rate, 'NE_std': NE_std, 'filename': NE_filenames})
+    exploded_NE_df = pd.DataFrame({'Genotype': genotypes, 'NE': exploded_NE_rate, 'NE_std': exploded_NE_std, 'filename': NE_filenames})
+
+    speed_df = pd.DataFrame({'Genotype': genotypes, 'speed': cell_speeds, 'speed_std': cell_speed_std})
+    combined_df = pd.concat([NE_df, speed_df["speed"]], axis=1, sort=False)
+
+    #plot_ordering = ['wt', 'MZitg', 'cdh2', 'MZitgcdh', 'cdh2--fbn2b--', 'cdh2--fn1a--fn1b--', 'cdh2MO-fn1a--fn1b--fbn2b--', 'fbn2b', 'fbn2b--fn1a--fn1b--', 'fn1a--fn1b--', 'wt_PZ']
+    plot_ordering = ['Wild type', 'Fbn2b', 'Fn1a;1b', 'Fn1a;1b; Fbn2b', r'itg$\alpha$5', 'cdh2', 'cdh2; Fbn2b', 'cdh2; Fn1a;1b', 'cdh2-MO; Fn1a;1b; Fbn2b', r'cdh2; itg$\alpha$5']
+    color_by_genotype = ['#B92137', '#EA8F19', '#ECC21C', '#009800','#00FF00', '#0072BD', '#00B0F6', '#DB90FF','#FF62BC', '#7E2F8E', '#969696']
+
+    NE_df['Genotype'] = pd.Categorical(NE_df['Genotype'], categories=plot_ordering, ordered=True)
+    NE_df = NE_df.sort_values('Genotype')
+>>>>>>> Stashed changes
     NE_df = NE_df.dropna()
+    exploded_NE_df['Genotype'] = pd.Categorical(exploded_NE_df['Genotype'], categories=plot_ordering, ordered=True)
+    exploded_NE_df = exploded_NE_df.sort_values('Genotype')
+    exploded_NE_df = exploded_NE_df.dropna()
 
     speed_df["Genotype"] = pd.Categorical(
         speed_df["Genotype"], categories=plot_ordering, ordered=True
@@ -629,15 +686,22 @@ def main():
     combined_df = combined_df.sort_values("Genotype")
     combined_df = combined_df.dropna()
 
+<<<<<<< Updated upstream
     plt.figure(figsize=(12, 8))
     plt.scatter(NE_df["Genotype"], NE_df["NE"])
+=======
+    plt.figure(figsize=(12,8))
+    exploded_NE_df = exploded_NE_df.explode('NE')
+    exploded_NE_df['NE'] = exploded_NE_df['NE'].astype(float)  # Converting 'NE' to float for plotting
+    plt.scatter(exploded_NE_df['Genotype'], exploded_NE_df['NE'])
+>>>>>>> Stashed changes
     plt.xticks(rotation=75)
     plt.xlabel("Genotype")
     plt.ylabel("NE rate (per cell per min)")
     plt.tight_layout()  # Automatically adjust subplot params
-    debugpy.breakpoint()
 
     for genotype in plot_ordering:
+<<<<<<< Updated upstream
         print(
             r"Neighbor exchanges: cdh2; itg$\alpha$5,",
             genotype,
@@ -656,6 +720,10 @@ def main():
                 alternative="greater",
             ),
         )
+=======
+        print(r'Neighbor exchanges: cdh2; itg$\alpha$5,', genotype, mannwhitneyu(exploded_NE_df[exploded_NE_df["Genotype"] == r'cdh2; itg$\alpha$5']["NE"], exploded_NE_df[exploded_NE_df["Genotype"] == genotype]["NE"], alternative='greater'))
+        print(r'Speeds: cdh2; itg$\alpha$5,', genotype, mannwhitneyu(speed_df[speed_df["Genotype"] == r'cdh2; itg$\alpha$5']["speed"], speed_df[speed_df["Genotype"] == genotype]["speed"], alternative='greater'))
+>>>>>>> Stashed changes
 
     for key in cell_NE_per_genotype.keys():
         print(key)
@@ -678,6 +746,7 @@ def main():
             ),
         )
 
+<<<<<<< Updated upstream
     NE_df.to_csv("NE_df.csv", index=False)
 
     # Convert 'Category' to a categorical type and assign numerical values
@@ -694,6 +763,18 @@ def main():
         ],
         axis=1,
     )
+=======
+    NE_df.to_csv('NE_df.csv', index=False)
+    exploded_NE_df.to_csv('exploded_NE_df.csv', index=False)
+
+    # Convert 'Category' to a categorical type and assign numerical values
+    NE_df['GenotypeNum'] = NE_df['Genotype'].astype('category').cat.codes
+    exploded_NE_df['GenotypeNum'] = exploded_NE_df['Genotype'].astype('category').cat.codes
+    offset_width = 0.15  # Adjust the spacing between points in the same category
+    grouped = NE_df.groupby('GenotypeNum')
+    offsets = {cat: np.linspace(-offset_width/2, offset_width/2, num=len(group)) for cat, group in grouped}
+    NE_df['Offset'] = NE_df.apply(lambda row: offsets[row['GenotypeNum']][grouped.groups[row['GenotypeNum']].get_loc(row.name)], axis=1)
+>>>>>>> Stashed changes
 
     plt.figure(figsize=(12, 8))
     plt.errorbar(
@@ -795,18 +876,21 @@ def main():
     plt.tight_layout()  # Automatically adjust subplot params
 
     debugpy.breakpoint()
+    # need to test colors
+    genotype_color_dict = {plot_ordering[i]: color_by_genotype[i] for i in range(len(plot_ordering))}
 
     fig, axs = plt.subplots(4, 1, sharex=True, figsize=(15, 15))
     plt.rcParams.update({"font.size": 30})
     plt.subplots_adjust(hspace=0)
-    axs[0].scatter(phi_df["Genotype"], phi_df["mean"])
+    axs[0].scatter(phi_df["Genotype"], phi_df["mean"], c=[genotype_color_dict[i] for i in phi_df["Genotype"]])
     axs[0].set_ylabel(r"$\phi$")
     axs[0].set_ylim(0.5, 1.0)
     axs[0].set_yticks([0.6, 0.8, 1.0])
-    axs[1].scatter(shape_df["Genotype"], shape_df["mean"])
+    axs[1].scatter(shape_df["Genotype"], shape_df["mean"], c=[genotype_color_dict[i] for i in shape_df["Genotype"]])
     axs[1].set_ylabel(r"C")
     axs[1].set_ylim(0.77, 0.93)
     axs[1].set_yticks([0.8, 0.84, 0.88, 0.92])
+<<<<<<< Updated upstream
     axs[2].errorbar(
         speed_df["GenotypeNum"] + speed_df["Offset"],
         speed_df["speed"],
@@ -818,6 +902,16 @@ def main():
     axs[2].set_ylim(0, 1)
     # axs[3].errorbar(NE_df['GenotypeNum']+NE_df['Offset'], NE_df['NE'], yerr=NE_df['NE_std'], fmt='o', capsize=5)
     axs[3].scatter(NE_df["GenotypeNum"], NE_df["NE"])
+=======
+    axs[2].errorbar(speed_df['GenotypeNum']+speed_df['Offset'], speed_df['speed'], yerr=speed_df['speed_std'], fmt='o', capsize=0, zorder=1, ecolor='black')
+    axs[2].scatter(speed_df['GenotypeNum']+speed_df['Offset'], speed_df['speed'], c=[genotype_color_dict[i] for i in speed_df["Genotype"]], zorder=2)
+    axs[2].set_ylabel(r"v $(\mu m/min)$")
+    axs[2].set_ylim(0,1)
+    axs[2].set_yticks([0.25, 0.5, 0.75])
+    axs[3].errorbar(NE_df['GenotypeNum']+NE_df['Offset'], NE_df['NE'], yerr=NE_df['NE_std'], fmt='o', capsize=0, zorder=1, ecolor='black')
+    axs[3].scatter(NE_df['GenotypeNum']+NE_df['Offset'], NE_df['NE'], c=[genotype_color_dict[i] for i in NE_df["Genotype"]], zorder=2)
+    #axs[3].scatter(exploded_NE_df['GenotypeNum'], exploded_NE_df['NE'])
+>>>>>>> Stashed changes
     axs[3].set_ylabel(r"NE $(cell \cdot min)^{-1}$")
     axs[3].set_ylim(0, 0.22)
     # axs[3].set_yticks([0, 0.1, 0.2])
@@ -828,6 +922,13 @@ def main():
     plt.tight_layout()  # Automatically adjust subplot params
     plt.savefig("stackedExperimentalOrderedPlots.eps", bbox_inches="tight")
     plt.show()
+
+    phi_df.to_csv('phi_df_experimental.csv')
+    shape_df.to_csv('shape_df_experimental.csv')
+    speed_df.to_csv('speed_df_experimental.csv')
+    NE_df.to_csv('NE_df_experimental.csv')
+
+    print("done!")
 
     debugpy.breakpoint()
 
